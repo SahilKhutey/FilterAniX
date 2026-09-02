@@ -1,4 +1,4 @@
-﻿"""Data Types and Configurations for Phase 3 Artistic Style Engine."""
+"""Data Types and Configurations for Phase 3 Artistic Style Engine."""
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -59,3 +59,11 @@ class RenderConfig:
     reference_image_path: Optional[str] = None
     device: str = "auto"
     model_id: Optional[str] = None
+
+    # ControlNet structural conditioning
+    controlnet_model_id: Optional[str] = None
+    controlnet_conditioning_scale: float = 0.80
+
+    # Identity Adapter (IP-Adapter) reference conditioning
+    identity_adapter_model_id: Optional[str] = None
+    identity_conditioning_scale: float = 0.70
