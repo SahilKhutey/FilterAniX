@@ -1,53 +1,39 @@
-﻿"""Phase 6 Production Pipeline CLI Runner."""
 import argparse
-import sys
 from pathlib import Path
 
-# Ensure root in sys.path
-ROOT_DIR = Path(__file__).resolve().parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
 from src.core.project import Project
-from src.core.pipeline import ProductionPipelineController
+from src.core.pipeline import PipelineManager
+from src.core.recovery import recover_project
+from src.core.logging_setup import setup_logging
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Animated Creator — Phase 6 Production Pipeline")
-    parser.add_argument("--input", "-i", type=str, required=True, help="Path to input video (.mp4/.mov)")
-    parser.add_argument("--style", "-s", type=str, default="anime_creator", help="Style key (anime_creator, clean_illustration, comic, watercolor, manga)")
-    parser.add_argument("--project-dir", "-p", type=str, default=None, help="Directory for project workspace")
-    parser.add_argument("--max-frames", "-m", type=int, default=None, help="Max frames to process")
-    parser.add_argument("--no-resume", action="store_true", help="Force recalculating all stages from scratch")
+    parser = argparse.ArgumentParser(description="Animated Creator Production Pipeline")
+    parser.add_argument("--input", required=True, help="Path to input creator video")
+    parser.add_argument("--project", required=True, help="Path to project directory")
+    parser.add_argument("--style", default="anime_creator", help="Style key (e.g. anime_creator, illustration)")
 
     args = parser.parse_args()
 
-    input_p = Path(args.input)
-    if not input_p.exists():
-        print(f"[ERROR] Input video does not exist: {input_p}")
-        sys.exit(1)
+    logger = setup_logging()
+    project = Project(args.project)
 
-    proj_dir = Path(args.project_dir) if args.project_dir else Path("projects") / input_p.stem
-    project = Project(proj_dir)
-    controller = ProductionPipelineController(project=project, style_key=args.style)
+    if not project.manifest_path.exists():
+        project.create(Path(args.project).name)
 
-    def on_progress(stage_name, pct):
-        print(f"[*] [{pct:5.1f}%] {stage_name}...")
+    recover_project(project)
+    pipeline = PipelineManager(project)
 
-    final_master = controller.run(
-        input_video_path=input_p,
-        max_frames=args.max_frames,
-        progress_callback=on_progress,
-        resume=(not args.no_resume),
+    logger.info("Starting Animated Creator pipeline")
+    result = pipeline.run(
+        input_video=args.input,
+        style=args.style,
     )
 
-    print("==================================================")
-    print("         PROJECT EXECUTION COMPLETED!             ")
-    print("==================================================")
-    print(f"[+] Project Workspace: {project.root_dir.resolve()}")
-    print(f"[+] Manifest:          {project.manifest_path.resolve()}")
-    print(f"[+] YouTube Master:    {final_master}")
-    print("==================================================")
+    logger.info("Pipeline completed: %s", result)
+    print()
+    print("FINAL VIDEO:")
+    print(result["final_video"])
 
 
 if __name__ == "__main__":

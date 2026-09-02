@@ -1,10 +1,93 @@
-﻿"""Lip-Sync Mouth State and Viseme Analyzer."""
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 import numpy as np
 
+from .timeline import VisemeFrame
 from src.vision.models import FrameVisionData, FaceData
+
+
+def _get_value(data: Dict[str, Any], *keys, default=0.0):
+    for key in keys:
+        if key in data:
+            return data[key]
+
+    return default
+
+
+def extract_mouth_open(observation: Dict[str, Any]) -> float:
+    """
+    Supports several possible Phase 2 mouth schemas.
+    Returns normalized mouth opening in [0, 1].
+    """
+    if not observation:
+        return 0.0
+
+    value = _get_value(
+        observation,
+        "mouth_open",
+        "mouth_openness",
+        "mouth_opening",
+        "mouthOpen",
+        default=None,
+    )
+
+    if value is not None:
+        return max(0.0, min(1.0, float(value)))
+
+    landmarks = observation.get("landmarks")
+
+    if not landmarks:
+        return 0.0
+
+    if isinstance(landmarks, dict):
+        upper = landmarks.get("upper_lip")
+        lower = landmarks.get("lower_lip")
+
+        if upper is not None and lower is not None:
+            distance = abs(float(lower[1]) - float(upper[1]))
+            return max(0.0, min(1.0, distance))
+
+    elif isinstance(landmarks, list) and len(landmarks) >= 2:
+        pass
+
+    return 0.0
+
+
+def classify_mouth(
+    openness: float,
+    closed_threshold: float = 0.10,
+    slightly_open_threshold: float = 0.22,
+    open_threshold: float = 0.40,
+) -> str:
+    if openness < closed_threshold:
+        return "closed"
+
+    if openness < slightly_open_threshold:
+        return "slightly_open"
+
+    if openness < open_threshold:
+        return "open"
+
+    return "wide_open"
+
+
+def analyze_mouth_frame(
+    frame_index: int,
+    timestamp: float,
+    observation: Optional[Dict[str, Any]],
+) -> VisemeFrame:
+    openness = extract_mouth_open(observation or {})
+    state = classify_mouth(openness)
+
+    return VisemeFrame(
+        frame_index=frame_index,
+        timestamp=timestamp,
+        mouth_open=openness,
+        state=state,
+    )
 
 
 class VisemeState(str, Enum):
@@ -45,9 +128,9 @@ class LipSyncAnalyzer:
 
     def __init__(
         self,
-        thresh_closed: float = 0.08,
+        thresh_closed: float = 0.10,
         thresh_open: float = 0.22,
-        thresh_wide: float = 0.45,
+        thresh_wide: float = 0.40,
     ):
         self.thresh_closed = thresh_closed
         self.thresh_open = thresh_open
@@ -55,14 +138,13 @@ class LipSyncAnalyzer:
 
     def classify_ratio(self, ratio: float) -> VisemeState:
         """Maps mouth opening ratio to VisemeState."""
-        if ratio < self.thresh_closed:
-            return VisemeState.CLOSED
-        elif ratio < self.thresh_open:
-            return VisemeState.SLIGHTLY_OPEN
-        elif ratio < self.thresh_wide:
-            return VisemeState.OPEN
-        else:
-            return VisemeState.WIDE_OPEN
+        state_str = classify_mouth(
+            ratio,
+            closed_threshold=self.thresh_closed,
+            slightly_open_threshold=self.thresh_open,
+            open_threshold=self.thresh_wide,
+        )
+        return VisemeState(state_str)
 
     def analyze_frame(
         self,
@@ -82,3 +164,14 @@ class LipSyncAnalyzer:
             mouth_open_ratio=ratio,
             viseme=viseme.value,
         )
+
+
+
+def build_lipsync(
+    video: str | Any,
+    vision_jsonl: str | Any,
+    output: str | Any,
+):
+    from build_lipsync import build_lipsync as _build
+    return _build(video, vision_jsonl, output)
+

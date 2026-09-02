@@ -1,82 +1,82 @@
-﻿"""Extract and smooth creator lip-sync timeline into lipsync.jsonl."""
+from __future__ import annotations
+
 import argparse
 import json
-import sys
 from pathlib import Path
-from tqdm import tqdm
+import cv2
 
-# Ensure root in sys.path
-ROOT_DIR = Path(__file__).resolve().parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
-from src.lipsync.analyzer import LipSyncAnalyzer, LipSyncRecord
-from src.lipsync.smoother import LipSyncSmoother
-from src.vision.models import FrameVisionData, FaceData, Landmark, BoundingBox
+from src.lipsync.analyzer import analyze_mouth_frame
+from src.lipsync.smoother import smooth_timeline
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Phase 5 Lip-Sync Timeline Extractor")
-    parser.add_argument("--video", "-v", type=str, required=True, help="Input video path")
-    parser.add_argument("--vision-jsonl", "-j", type=str, required=True, help="Path to Phase 2 vision.jsonl")
-    parser.add_argument("--output", "-o", type=str, default="lipsync.jsonl", help="Output lipsync.jsonl path")
-    parser.add_argument("--window-size", "-w", type=int, default=5, help="Temporal smoothing window size")
+def build_lipsync(
+    video: str | Path,
+    vision_jsonl: str | Path,
+    output: str | Path,
+) -> Path:
+    cap = cv2.VideoCapture(str(video))
+    if not cap.isOpened():
+        raise RuntimeError(f"Could not open video: {video}")
 
-    args = parser.parse_args()
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps <= 0:
+        fps = 30.0
 
-    jsonl_p = Path(args.vision_jsonl)
-    out_p = Path(args.output)
-    out_p.parent.mkdir(parents=True, exist_ok=True)
-
-    if not jsonl_p.exists():
-        print(f"[ERROR] Vision data file not found: {jsonl_p}")
-        sys.exit(1)
-
-    print("==================================================")
-    print("       PHASE 5: LIP-SYNC TIMELINE GENERATOR       ")
-    print("==================================================")
-    print(f"[*] Reading Vision Data: {jsonl_p}")
-    print(f"[*] Smoothing Window:    {args.window_size} frames")
-    print(f"[*] Output Target:       {out_p}")
-    print("--------------------------------------------------")
-
-    analyzer = LipSyncAnalyzer()
-    raw_records = []
-
-    with open(jsonl_p, "r", encoding="utf-8") as f:
+    vision_frames = {}
+    with open(str(vision_jsonl), "r", encoding="utf-8") as f:
         for line in f:
             if not line.strip():
                 continue
-            d = json.loads(line)
-            idx = d.get("frame_index", 0)
-            ts = d.get("timestamp", 0.0)
+            data = json.loads(line)
+            index = int(data.get("frame_index", data.get("frame", 0)))
+            vision_frames[index] = data
 
-            faces = []
-            for f_d in d.get("faces", []):
-                faces.append(
-                    FaceData(
-                        face_id=f_d.get("face_id", 0),
-                        landmarks=[],
-                        bbox=BoundingBox(**f_d["bbox"]),
-                        landmark_count=f_d.get("landmark_count", 0),
-                        mouth_opening=f_d.get("mouth_opening", 0.0),
-                    )
-                )
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    frames = []
 
-            vision_data = FrameVisionData(
-                frame_index=idx, timestamp=ts, width=1920, height=1080, faces=faces
-            )
-            rec = analyzer.analyze_frame(frame_index=idx, timestamp=ts, vision_data=vision_data)
-            raw_records.append(rec)
+    for index in range(total_frames):
+        observation = vision_frames.get(index, {})
 
-    smoother = LipSyncSmoother(window_size=args.window_size)
-    smoothed_records = smoother.smooth_timeline(raw_records)
+        face = observation.get("face", {})
+        if isinstance(face, list):
+            face = face[0] if face else {}
 
-    with open(out_p, "w", encoding="utf-8") as out_f:
-        for r in smoothed_records:
-            out_f.write(json.dumps(r.to_dict()) + "\n")
+        mouth = (
+            face.get("mouth")
+            if isinstance(face, dict) and face.get("mouth")
+            else face
+        )
 
-    print(f"[SUCCESS] Generated {len(smoothed_records)} smoothed viseme records in: {out_p}")
+        result = analyze_mouth_frame(
+            frame_index=index,
+            timestamp=index / fps,
+            observation=mouth,
+        )
+        frames.append(result)
+
+    cap.release()
+
+    frames = smooth_timeline(frames, window=3)
+
+    out_p = Path(output)
+    out_p.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(str(out_p), "w", encoding="utf-8") as f:
+        for frame in frames:
+            f.write(json.dumps(frame.to_dict()) + "\n")
+
+    return out_p
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--video", required=True)
+    parser.add_argument("--vision-jsonl", required=True)
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args()
+
+    out_p = build_lipsync(args.video, args.vision_jsonl, args.output)
+    print(f"Created lip-sync timeline: {out_p}")
 
 
 if __name__ == "__main__":

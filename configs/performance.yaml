@@ -1,0 +1,17 @@
+name: performance
+
+video:
+  resolution: 720
+  fps: 30
+
+art:
+  backend: opencv
+  diffusion_steps: 8
+  guidance_scale: 5.0
+
+consistency:
+  keyframe_interval: 24
+
+export:
+  crf: 22
+  audio_bitrate: 160k

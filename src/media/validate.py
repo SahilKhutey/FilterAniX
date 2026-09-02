@@ -1,9 +1,134 @@
-﻿"""Media Output Validator and A/V Synchronization Auditor."""
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from src.media.ffmpeg import inspect_media, MediaDetails
+from src.media.ffmpeg import require_ffmpeg, inspect_media, MediaDetails
+
+
+def probe(path: str | Path) -> dict[str, Any]:
+    """Inspects container streams and format via FFprobe JSON output with FFmpeg fallback."""
+    path_str = str(Path(path).resolve())
+    if not Path(path_str).exists():
+        raise FileNotFoundError(f"Media file not found: {path_str}")
+
+    ffprobe_bin = shutil.which("ffprobe")
+    if ffprobe_bin:
+        try:
+            command = [
+                ffprobe_bin,
+                "-v",
+                "error",
+                "-show_streams",
+                "-show_format",
+                "-of",
+                "json",
+                path_str,
+            ]
+            result = subprocess.run(
+                command,
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="ignore",
+            )
+            return json.loads(result.stdout)
+        except Exception:
+            pass
+
+    # Reliable fallback using FFmpeg header output and OpenCV metadata
+    details = inspect_media(path_str)
+    streams = []
+    if details.has_video:
+        streams.append({
+            "codec_type": "video",
+            "codec_name": details.video_codec,
+            "width": details.width,
+            "height": details.height,
+            "r_frame_rate": f"{int(details.fps)}/1",
+            "duration": str(details.video_duration),
+        })
+    if details.has_audio:
+        streams.append({
+            "codec_type": "audio",
+            "codec_name": details.audio_codec,
+            "sample_rate": str(details.sample_rate),
+            "channels": details.channels,
+            "duration": str(details.audio_duration),
+        })
+
+    max_dur = max(details.video_duration, details.audio_duration)
+    return {
+        "streams": streams,
+        "format": {
+            "filename": path_str,
+            "duration": str(max_dur),
+            "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+        },
+    }
+
+
+def validate_video(path: str | Path) -> dict[str, Any]:
+    """Validates video stream health, dimensions, and audio/video duration alignment."""
+    data = probe(path)
+
+    streams = data.get("streams", [])
+
+    video = [
+        s for s in streams
+        if s.get("codec_type") == "video"
+    ]
+
+    audio = [
+        s for s in streams
+        if s.get("codec_type") == "audio"
+    ]
+
+    errors = []
+    warnings = []
+
+    if not video:
+        errors.append("No video stream found.")
+
+    width = 0
+    height = 0
+    if video:
+        width = int(video[0].get("width", 0))
+        height = int(video[0].get("height", 0))
+
+        if width <= 0 or height <= 0:
+            errors.append("Invalid video dimensions.")
+
+    video_duration = float(video[0].get("duration", 0)) if video and video[0].get("duration") else 0.0
+    audio_duration = float(audio[0].get("duration", 0)) if audio and audio[0].get("duration") else 0.0
+
+    if video_duration <= 0 and data.get("format", {}).get("duration"):
+        video_duration = float(data["format"]["duration"])
+    if audio_duration <= 0 and audio and data.get("format", {}).get("duration"):
+        audio_duration = float(data["format"]["duration"])
+
+    duration_delta = abs(video_duration - audio_duration) if (video and audio) else 0.0
+
+    if video and audio and duration_delta > 0.35:
+        warnings.append(
+            f"A/V duration difference: {duration_delta:.3f}s"
+        )
+
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors,
+        "warnings": warnings,
+        "width": width,
+        "height": height,
+        "video_duration": round(video_duration, 3),
+        "audio_duration": round(audio_duration, 3),
+        "duration_delta": round(duration_delta, 3),
+    }
 
 
 @dataclass

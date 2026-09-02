@@ -1,0 +1,17 @@
+name: quality
+
+video:
+  resolution: 1080
+  fps: 30
+
+art:
+  backend: diffusion
+  diffusion_steps: 30
+  guidance_scale: 7.5
+
+consistency:
+  keyframe_interval: 8
+
+export:
+  crf: 16
+  audio_bitrate: 256k

@@ -1,4 +1,6 @@
-﻿"""Advanced FFmpeg Media Processing, Loudness Normalization, and Subtitle Multiplexing."""
+"""Advanced FFmpeg Media Processing, Loudness Normalization, and Subtitle Multiplexing."""
+from __future__ import annotations
+
 import os
 import re
 import shutil
@@ -8,7 +10,86 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import cv2
 
-from src.io.video_io import get_ffmpeg_executable, get_ffprobe_executable
+def get_ffmpeg_executable() -> str:
+    """Finds FFmpeg executable on the system or falls back to imageio-ffmpeg bundled binary."""
+    system_ffmpeg = shutil.which("ffmpeg")
+    if system_ffmpeg:
+        return system_ffmpeg
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        pass
+    raise RuntimeError("FFmpeg executable could not be located on system or through imageio-ffmpeg.")
+
+
+def get_ffprobe_executable() -> Optional[str]:
+    """Finds FFprobe executable on the system if present."""
+    return shutil.which("ffprobe")
+
+
+def require_ffmpeg() -> str:
+    """Ensures FFmpeg is available and returns its executable path."""
+    bin_path = get_ffmpeg_executable()
+    if bin_path and shutil.which(bin_path):
+        return bin_path
+    if shutil.which("ffmpeg"):
+        return "ffmpeg"
+    raise RuntimeError("FFmpeg was not found in PATH.")
+
+
+
+def require_ffprobe() -> str:
+    """Ensures FFprobe is available and returns its executable path."""
+    bin_path = get_ffprobe_executable()
+    if bin_path and shutil.which(bin_path):
+        return bin_path
+    if shutil.which("ffprobe"):
+        return "ffprobe"
+    raise RuntimeError("FFprobe was not found in PATH.")
+
+
+def run_ffmpeg(
+    args: list[str],
+    check: bool = True,
+) -> subprocess.CompletedProcess:
+    """Runs FFmpeg with standard flags and argument list."""
+    ffmpeg_bin = require_ffmpeg()
+    command = [
+        ffmpeg_bin,
+        "-hide_banner",
+        "-y",
+        *args,
+    ]
+    return subprocess.run(
+        command,
+        check=check,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="ignore",
+    )
+
+
+def run_ffprobe(
+    args: list[str],
+    check: bool = True,
+) -> subprocess.CompletedProcess:
+    """Runs FFprobe with standard flags and argument list."""
+    ffprobe_bin = require_ffprobe()
+    command = [
+        ffprobe_bin,
+        "-hide_banner",
+        *args,
+    ]
+    return subprocess.run(
+        command,
+        check=check,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="ignore",
+    )
 
 
 @dataclass
@@ -48,12 +129,12 @@ class MediaDetails:
 
 
 def inspect_media(path: str | Path) -> MediaDetails:
-    """Inspects video and audio stream parameters using FFmpeg."""
+    """Inspects video and audio stream parameters using FFmpeg / FFprobe."""
     path = Path(path).resolve()
     if not path.exists():
         raise FileNotFoundError(f"Media file not found: {path}")
 
-    ffmpeg_bin = get_ffmpeg_executable()
+    ffmpeg_bin = require_ffmpeg()
     proc = subprocess.run(
         [ffmpeg_bin, "-i", str(path)],
         stdout=subprocess.PIPE,
@@ -96,7 +177,7 @@ def inspect_media(path: str | Path) -> MediaDetails:
         if details.has_audio:
             details.audio_duration = dur_val
 
-    # Backup OpenCV inspection for video stats if FFmpeg regex missed
+    # Backup OpenCV inspection for video stats
     if details.width == 0 or details.height == 0:
         cap = cv2.VideoCapture(str(path))
         if cap.isOpened():
@@ -119,14 +200,11 @@ def normalize_audio(
     true_peak: float = -1.5,
 ) -> bool:
     """Normalizes audio track to YouTube / EBU R128 loudness standards (-14 LUFS, -1.5 dBTP)."""
-    ffmpeg_bin = get_ffmpeg_executable()
     output_audio_path = Path(output_audio_path)
     output_audio_path.parent.mkdir(parents=True, exist_ok=True)
 
     filter_str = f"loudnorm=I={target_lufs}:TP={true_peak}:LRA=11"
-    cmd = [
-        ffmpeg_bin,
-        "-y",
+    args = [
         "-i", str(input_audio_source),
         "-vn",
         "-af", filter_str,
@@ -136,7 +214,7 @@ def normalize_audio(
         str(output_audio_path),
     ]
 
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    res = run_ffmpeg(args, check=False)
     return res.returncode == 0 and output_audio_path.exists() and output_audio_path.stat().st_size > 0
 
 
@@ -149,21 +227,19 @@ def mux_media(
     preset: str = "medium",
 ) -> bool:
     """Multiplexes video stream, audio track, and optional subtitles into a final broadcast MP4."""
-    ffmpeg_bin = get_ffmpeg_executable()
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    cmd = [ffmpeg_bin, "-y", "-i", str(video_path)]
+    args = ["-i", str(video_path)]
 
     if audio_path and Path(audio_path).exists():
-        cmd.extend(["-i", str(audio_path)])
+        args.extend(["-i", str(audio_path)])
 
-    # Subtitle handling (soft subtitles via mov_text in MP4)
     if subtitles_path and Path(subtitles_path).exists():
-        cmd.extend(["-i", str(subtitles_path)])
-        cmd.extend(["-c:s", "mov_text"])
+        args.extend(["-i", str(subtitles_path)])
+        args.extend(["-c:s", "mov_text"])
 
-    cmd.extend([
+    args.extend([
         "-c:v", "libx264",
         "-pix_fmt", "yuv420p",
         "-crf", str(crf),
@@ -171,14 +247,13 @@ def mux_media(
     ])
 
     if audio_path and Path(audio_path).exists():
-        cmd.extend([
+        args.extend([
             "-c:a", "aac",
             "-b:a", "192k",
             "-ar", "48000",
             "-shortest",
         ])
 
-    cmd.append(str(output_path))
-
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    args.append(str(output_path))
+    res = run_ffmpeg(args, check=False)
     return res.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0

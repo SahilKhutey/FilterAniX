@@ -1,0 +1,17 @@
+name: balanced
+
+video:
+  resolution: 1080
+  fps: 30
+
+art:
+  backend: auto
+  diffusion_steps: 20
+  guidance_scale: 7.0
+
+consistency:
+  keyframe_interval: 12
+
+export:
+  crf: 18
+  audio_bitrate: 192k

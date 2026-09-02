@@ -1,7 +1,17 @@
 from typing import Any, Dict, List, Optional
 import cv2
 import numpy as np
+
+# Protobuf 5+ compatibility shim for MediaPipe symbol_database
+try:
+    from google.protobuf import symbol_database, message_factory
+    if not hasattr(symbol_database.SymbolDatabase, "GetPrototype"):
+        symbol_database.SymbolDatabase.GetPrototype = lambda self, descriptor: message_factory.GetMessageClass(descriptor)
+except Exception:
+    pass
+
 import mediapipe as mp
+
 
 from .types import BoundingBox, Point3D
 

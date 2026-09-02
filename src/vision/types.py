@@ -12,6 +12,14 @@ class Point:
     z: float | None = None
     visibility: float | None = None
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "x": self.x,
+            "y": self.y,
+            "z": self.z,
+            "visibility": self.visibility,
+        }
+
 
 @dataclass
 class BoundingBox:
@@ -20,6 +28,27 @@ class BoundingBox:
     width: float
     height: float
     confidence: float | None = None
+    score: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "x": self.x,
+            "y": self.y,
+            "width": self.width,
+            "height": self.height,
+            "confidence": self.confidence,
+            "score": self.score,
+        }
+
+
+
+@dataclass
+class Detection:
+    label: str
+    class_id: int
+    confidence: float
+    box: BoundingBox
+
 
 
 @dataclass
@@ -223,5 +252,6 @@ class VisionFrame:
 
 # Compatibility Aliases
 Point3D = Point
-FrameVision = VisionFrame
+from src.vision.models import FrameVisionData as FrameVision
 MotionData = MotionObservation
+

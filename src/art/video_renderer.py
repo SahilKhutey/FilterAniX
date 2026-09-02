@@ -33,11 +33,24 @@ class VideoRenderer:
     def __init__(
         self,
         style_config: StyleConfig | None = None,
+        config: StyleConfig | None = None,
     ):
-        self.style_config = style_config or StyleConfig()
+        self.style_config = config or style_config or StyleConfig()
         self.style_controller = StyleController(self.style_config)
         self.fast_renderer = OpenCVArtRenderer()
         self.temporal = TemporalStabilizer(self.style_config.temporal_blend)
+
+    def render_video(
+        self,
+        video_path: str | Path,
+        vision_jsonl_path: str | Path,
+        output_path: str | Path,
+    ) -> dict[str, Any]:
+        return self.render(
+            input_video=video_path,
+            vision_jsonl=vision_jsonl_path,
+            output_video=output_path,
+        )
 
     def render(
         self,
@@ -45,6 +58,7 @@ class VideoRenderer:
         vision_jsonl: str | Path,
         output_video: str | Path,
     ) -> dict[str, Any]:
+
         output_video = Path(output_video)
         output_video.parent.mkdir(parents=True, exist_ok=True)
 

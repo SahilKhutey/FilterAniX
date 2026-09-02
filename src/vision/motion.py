@@ -2,7 +2,7 @@ from typing import Optional
 import cv2
 import numpy as np
 
-from .types import MotionData
+from .models import MotionData
 
 
 class OpticalFlowMotion:

@@ -165,13 +165,14 @@ class FrameVisionData:
             "timestamp": round(self.timestamp, 4),
             "width": self.width,
             "height": self.height,
-            "faces": [f.to_dict() for f in self.faces],
-            "pose": self.pose.to_dict() if self.pose else None,
-            "hands": [h.to_dict() for h in self.hands],
-            "person_mask": self.person_mask.to_dict() if self.person_mask else None,
-            "motion": self.motion.to_dict(),
-            "objects": [obj.to_dict() for obj in self.objects],
+            "faces": [f.to_dict() if hasattr(f, "to_dict") else f for f in self.faces],
+            "pose": self.pose.to_dict() if hasattr(self.pose, "to_dict") else self.pose,
+            "hands": [h.to_dict() if hasattr(h, "to_dict") else h for h in self.hands],
+            "person_mask": self.person_mask.to_dict() if hasattr(self.person_mask, "to_dict") else self.person_mask,
+            "motion": self.motion.to_dict() if hasattr(self.motion, "to_dict") else (vars(self.motion) if hasattr(self.motion, "__dict__") else self.motion),
+            "objects": [obj.to_dict() if hasattr(obj, "to_dict") else obj for obj in self.objects],
         }
+
 
     def to_canonical(self):
         from src.vision.types import VisionFrame

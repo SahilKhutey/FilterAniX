@@ -1,9 +1,93 @@
-﻿"""Multi-Track Final Video Compositor."""
-import tempfile
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Optional
 
-from src.media.ffmpeg import inspect_media, normalize_audio, mux_media
+from .ffmpeg import run_ffmpeg, inspect_media, normalize_audio, mux_media
+
+
+def compose_final_video(
+    animated_video: str | Path,
+    audio_source: str | Path,
+    output: str | Path,
+    subtitles: str | None = None,
+    crf: int = 18,
+    preset: str = "medium",
+    audio_bitrate: str = "192k",
+) -> Path:
+    """Composites animated video frames with the original voice audio stream and applies EBU R128 loudness normalization."""
+    output_path = Path(output).resolve()
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    args = [
+        "-i",
+        str(animated_video),
+        "-i",
+        str(audio_source),
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0?",
+        "-c:v",
+        "libx264",
+        "-preset",
+        preset,
+        "-crf",
+        str(crf),
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        audio_bitrate,
+        "-ar",
+        "48000",
+        "-ac",
+        "2",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-movflags",
+        "+faststart",
+        "-shortest",
+    ]
+
+    if subtitles and Path(subtitles).exists():
+        args.extend(
+            [
+                "-vf",
+                f"subtitles={subtitles}",
+            ]
+        )
+
+    args.append(str(output_path))
+
+    result = run_ffmpeg(args, check=False)
+
+    if result.returncode != 0:
+        # Fallback without audio filter if source had no audio or loudnorm failed
+        fallback_args = [
+            "-i",
+            str(animated_video),
+            "-c:v",
+            "libx264",
+            "-preset",
+            preset,
+            "-crf",
+            str(crf),
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            str(output_path),
+        ]
+        fallback_res = run_ffmpeg(fallback_args, check=False)
+        if fallback_res.returncode != 0:
+            raise RuntimeError(f"FFmpeg composition failed: {result.stderr or fallback_res.stderr}")
+
+    return output_path
 
 
 class VideoCompositor:
@@ -29,53 +113,12 @@ class VideoCompositor:
         subtitles_path: Optional[str | Path] = None,
         normalize_loudness: bool = True,
     ) -> str:
-        """Executes full multi-track composition and loudness normalization."""
-        video_p = Path(video_path).resolve()
-        audio_src_p = Path(audio_source_path).resolve()
-        output_p = Path(output_path).resolve()
-        output_p.parent.mkdir(parents=True, exist_ok=True)
-
-        if not video_p.exists():
-            raise FileNotFoundError(f"Input video file not found: {video_p}")
-        if not audio_src_p.exists():
-            raise FileNotFoundError(f"Audio source file not found: {audio_src_p}")
-
-        # Check audio presence in source
-        media_info = inspect_media(audio_src_p)
-        temp_audio = None
-
-        if media_info.has_audio:
-            if normalize_loudness:
-                temp_audio = output_p.parent / f"temp_norm_audio_{output_p.stem}.m4a"
-                norm_ok = normalize_audio(
-                    input_audio_source=audio_src_p,
-                    output_audio_path=temp_audio,
-                    target_lufs=self.target_lufs,
-                    true_peak=self.true_peak,
-                )
-                if not norm_ok:
-                    temp_audio = audio_src_p
-            else:
-                temp_audio = audio_src_p
-
-        # Execute final multiplexing
-        success = mux_media(
-            video_path=video_p,
-            audio_path=temp_audio,
-            output_path=output_p,
-            subtitles_path=subtitles_path,
+        res = compose_final_video(
+            animated_video=video_path,
+            audio_source=audio_source_path,
+            output=output_path,
+            subtitles=subtitles_path,
             crf=self.crf,
             preset=self.preset,
         )
-
-        # Cleanup temporary normalized audio file
-        if temp_audio and temp_audio != audio_src_p and Path(temp_audio).exists():
-            try:
-                Path(temp_audio).unlink(missing_ok=True)
-            except Exception:
-                pass
-
-        if not success or not output_p.exists():
-            raise RuntimeError(f"Failed to generate composite video at: {output_p}")
-
-        return str(output_p)
+        return str(res)

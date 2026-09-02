@@ -1,4 +1,6 @@
-﻿"""Interactive Production Studio Web Application for Animated Creator."""
+"""Interactive Production Studio Web Application for Animated Creator."""
+from __future__ import annotations
+
 import json
 import os
 import sys
@@ -13,11 +15,12 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from src.core.project import Project
-from src.core.pipeline import ProductionPipelineController
-from src.core.export import YouTubeExporter, YOUTUBE_PRESETS
-from src.core.hardware import get_hardware_report
-from src.art.style_engine import StyleEngine
-from src.art.types import StylePreset, RenderConfig
+from src.core.pipeline import PipelineManager
+from src.core.jobs import JobManager
+from src.core.recovery import recover_project
+from src.core.hardware import system_info, select_live_backend
+from src.art.opencv_renderer import OpenCVArtRenderer
+from export_youtube import export, PRESETS
 
 
 def load_style_choices():
@@ -29,73 +32,72 @@ def load_style_choices():
     return ["anime_creator", "clean_illustration", "comic", "watercolor", "manga"]
 
 
-# Fast Real-Time Camera Stylizer
-_live_style_engine = None
+job_manager = JobManager()
+_live_renderer = OpenCVArtRenderer()
 
 
 def live_camera_stylize(frame):
-    """Processes webcam frames in real-time with lightweight stylization."""
-    global _live_style_engine
+    """Processes webcam frames in real-time with lightweight OpenCV stylization."""
     if frame is None:
         return None
-    if _live_style_engine is None:
-        _live_style_engine = StyleEngine(RenderConfig(style=StylePreset(name="anime_creator", shading_levels=5)))
-    
-    # Downsample slightly for real-time responsiveness if frame is large
+
     h, w = frame.shape[:2]
     if w > 640:
         small = cv2.resize(frame, (640, int(h * 640 / w)))
-        art = _live_style_engine.render_frame(small, stabilize=True)
+        art = _live_renderer.render(small)
         return cv2.resize(art, (w, h))
-    
-    return _live_style_engine.render_frame(frame, stabilize=True)
+
+    return _live_renderer.render(frame)
 
 
-def process_video_pipeline(input_video, style_choice, max_frames):
+def process_video_pipeline(input_video, style_choice):
     if not input_video:
         return None, "Please upload or select an input video."
 
     in_path = Path(input_video)
     project_dir = Path("projects") / in_path.stem
     project = Project(project_dir)
-    controller = ProductionPipelineController(project=project, style_key=style_choice)
 
-    status_log = []
-    def on_progress(stage, pct):
-        status_log.append(f"[{pct:5.1f}%] {stage}")
+    if not project.manifest_path.exists():
+        project.create(in_path.stem)
 
-    frames_limit = int(max_frames) if max_frames and int(max_frames) > 0 else None
-    master_path = controller.run(
-        input_video_path=in_path,
-        max_frames=frames_limit,
-        progress_callback=on_progress,
-        resume=True,
-    )
+    recover_project(project)
+    pipeline = PipelineManager(project)
 
-    summary_msg = f"✅ Processing Complete!\n\nProject: {project.root_dir.resolve()}\nMaster: {master_path}"
-    return master_path, summary_msg
+    try:
+        result = pipeline.run(
+            input_video=in_path,
+            style=style_choice or "anime_creator",
+        )
+        master_path = result["final_video"]
+        summary_msg = f"✅ Processing Complete!\n\nProject: {project.root.resolve()}\nMaster: {master_path}\nValidation: {result.get('validation')}"
+        return master_path, summary_msg
+    except Exception as exc:
+        return None, f"❌ Pipeline failed: {str(exc)}"
 
 
 def export_preset_video(master_video, preset_choice):
     if not master_video:
         return None, "Please provide a master video to export."
-    
+
     in_p = Path(master_video)
-    out_p = in_p.parent.parent / "export" / f"youtube_{preset_choice}.mp4"
-    out_p.parent.mkdir(parents=True, exist_ok=True)
+    out_p = in_p.parent / f"youtube_{preset_choice}.mp4"
 
-    exporter = YouTubeExporter(preset_name=preset_choice)
-    exported = exporter.export(input_master_path=in_p, output_export_path=out_p)
-
-    return exported, f"✅ Exported YouTube {preset_choice} Master to:\n{exported}"
+    try:
+        exported = export(
+            input_path=in_p,
+            output_path=out_p,
+            preset=preset_choice,
+        )
+        return str(exported), f"✅ Exported YouTube {preset_choice} Master to:\n{exported}"
+    except Exception as exc:
+        return None, f"❌ Export failed: {str(exc)}"
 
 
 def get_system_diagnostics():
-    report = get_hardware_report()
-    return report.to_dict()
+    return system_info()
 
 
-# Build Gradio Interface
 def create_app():
     style_choices = load_style_choices()
 
@@ -118,7 +120,6 @@ def create_app():
                             value=style_choices[0] if style_choices else "anime_creator",
                             label="Artistic Style Preset",
                         )
-                        max_frames_input = gr.Number(value=0, label="Max Frames (0 for full video)", precision=0)
                         run_btn = gr.Button("⚡ Render Full Animated Creator Pipeline", variant="primary")
                     with gr.Column(scale=1):
                         video_output = gr.Video(label="Final YouTube Master Output")
@@ -126,7 +127,7 @@ def create_app():
 
                 run_btn.click(
                     fn=process_video_pipeline,
-                    inputs=[video_input, style_dropdown, max_frames_input],
+                    inputs=[video_input, style_dropdown],
                     outputs=[video_output, status_output],
                 )
 
@@ -145,7 +146,7 @@ def create_app():
                     with gr.Column():
                         export_video_in = gr.Video(label="Input Master Video")
                         preset_dropdown = gr.Dropdown(
-                            choices=["720p", "1080p", "1440p", "2160p"],
+                            choices=list(PRESETS.keys()),
                             value="1080p",
                             label="YouTube Preset Resolution",
                         )

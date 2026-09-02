@@ -126,3 +126,16 @@ class VideoAnalyzer:
         )
 
         return summary
+
+
+def analyze_video(input_path: str | Path, output_path: str | Path) -> dict:
+    """Convenience function to analyze video and write vision.jsonl."""
+    input_p = Path(input_path)
+    output_p = Path(output_path)
+    output_dir = output_p.parent if output_p.suffix == ".jsonl" else output_p
+    output_dir.mkdir(parents=True, exist_ok=True)
+    engine = VisionEngine()
+    analyzer = VideoAnalyzer(engine)
+    res = analyzer.analyze(input_p, output_dir)
+    return res
+

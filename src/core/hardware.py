@@ -1,4 +1,6 @@
-﻿"""Hardware and Environment Diagnostics."""
+"""Hardware and Environment Diagnostics."""
+from __future__ import annotations
+
 import os
 import platform
 import shutil
@@ -7,7 +9,69 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
-from src.io.video_io import get_ffmpeg_executable, get_ffprobe_executable
+from src.media.ffmpeg import get_ffmpeg_executable, get_ffprobe_executable
+
+
+def command_exists(name: str) -> bool:
+    return shutil.which(name) is not None
+
+
+def get_gpu() -> Optional[str]:
+    if not command_exists("nvidia-smi"):
+        # Check torch fallback
+        try:
+            import torch
+            if torch.cuda.is_available():
+                return torch.cuda.get_device_name(0)
+        except Exception:
+            pass
+        return None
+
+    try:
+        result = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,memory.total",
+                "--format=csv,noheader",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+    except Exception:
+        return None
+
+
+def select_live_backend(hardware: Dict[str, Any]) -> str:
+    """Safety switch: never automatically launch expensive diffusion for real-time live webcam."""
+    if hardware.get("gpu"):
+        return "fast_gpu"
+    return "opencv"
+
+
+def system_info() -> Dict[str, Any]:
+    ffmpeg_ok = False
+    try:
+        ffmpeg_ok = get_ffmpeg_executable() is not None
+    except Exception:
+        pass
+
+    ffprobe_ok = False
+    try:
+        ffprobe_ok = get_ffprobe_executable() is not None
+    except Exception:
+        pass
+
+    return {
+        "os": platform.platform(),
+        "python": sys.version,
+        "cpu": platform.processor(),
+        "machine": platform.machine(),
+        "ffmpeg": ffmpeg_ok,
+        "ffprobe": ffprobe_ok,
+        "gpu": get_gpu(),
+    }
 
 
 @dataclass
@@ -59,14 +123,10 @@ def get_hardware_report() -> HardwareReport:
     gpu_name = "None (CPU Execution)"
     vram_gb = 0.0
 
-    try:
-        import torch
-        if torch.cuda.is_available():
-            cuda_avail = True
-            gpu_name = torch.cuda.get_device_name(0)
-            vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
-    except Exception:
-        pass
+    gpu_str = get_gpu()
+    if gpu_str:
+        cuda_avail = True
+        gpu_name = gpu_str
 
     return HardwareReport(
         os_name=os_name,
@@ -79,3 +139,8 @@ def get_hardware_report() -> HardwareReport:
         gpu_name=gpu_name,
         vram_gb=vram_gb,
     )
+
+
+if __name__ == "__main__":
+    import json
+    print(json.dumps(system_info(), indent=2))
