@@ -1,153 +1,333 @@
-"""Synthetic Humanoid Creator Video Generator for Vision Pipeline & Regression Testing."""
+from __future__ import annotations
+
+import argparse
 import math
 from pathlib import Path
+
 import cv2
 import numpy as np
 
 
-def generate_synthetic_creator_video(
-    output_path: Path | str,
-    num_frames: int = 60,
-    width: int = 640,
-    height: int = 360,
-    fps: int = 30,
-) -> Path:
-    """Generates a synthetic creator video with static room, desk, mic, laptop, and moving humanoid."""
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+WIDTH = 640
+HEIGHT = 480
+FPS = 30
+FRAMES = 180
+
+
+def ellipse(
+    frame: np.ndarray,
+    center: tuple[int, int],
+    axes: tuple[int, int],
+    angle: float = 0,
+    color: tuple[int, int, int] = (255, 255, 255),
+    thickness: int = -1,
+) -> None:
+    cv2.ellipse(
+        frame,
+        center,
+        axes,
+        angle,
+        0,
+        360,
+        color,
+        thickness,
+        cv2.LINE_AA,
+    )
+
+
+def draw_person(frame: np.ndarray, index: int) -> None:
+    t = index / FPS
+
+    # Small body sway.
+    sway = int(8 * math.sin(t * 2.0))
+    cx = WIDTH // 2 + sway
+
+    # -------------------------
+    # Body & Shoulders (Navy Shirt: BGR 160, 105, 80)
+    # -------------------------
+    cv2.ellipse(
+        frame,
+        (cx, 355),
+        (95, 115),
+        0,
+        0,
+        360,
+        (160, 105, 80),
+        -1,
+        cv2.LINE_AA,
+    )
+
+    cv2.line(
+        frame,
+        (cx - 75, 330),
+        (cx + 75, 330),
+        (160, 105, 80),
+        35,
+        cv2.LINE_AA,
+    )
+
+    # -------------------------
+    # Neck (Skin: BGR 145, 165, 215)
+    # -------------------------
+    cv2.rectangle(
+        frame,
+        (cx - 24, 250),
+        (cx + 24, 305),
+        (145, 165, 215),
+        -1,
+    )
+
+    # -------------------------
+    # Head & Face
+    # -------------------------
+    head_y = 185 + int(3 * math.sin(t * 1.5))
+
+    ellipse(
+        frame,
+        (cx, head_y),
+        (75, 95),
+        color=(145, 165, 215),  # Natural skin tone in BGR
+    )
+
+    # Hair (Dark Brown: BGR 35, 30, 45)
+    cv2.ellipse(
+        frame,
+        (cx, head_y - 42),
+        (78, 60),
+        0,
+        180,
+        360,
+        (35, 30, 45),
+        -1,
+        cv2.LINE_AA,
+    )
+    cv2.rectangle(
+        frame,
+        (cx - 78, head_y - 45),
+        (cx - 58, head_y + 30),
+        (35, 30, 45),
+        -1,
+    )
+    cv2.rectangle(
+        frame,
+        (cx + 58, head_y - 45),
+        (cx + 78, head_y + 30),
+        (35, 30, 45),
+        -1,
+    )
+
+    # Eyebrows
+    cv2.ellipse(
+        frame,
+        (cx - 28, head_y - 25),
+        (18, 5),
+        -8,
+        0,
+        360,
+        (30, 25, 35),
+        -1,
+        cv2.LINE_AA,
+    )
+    cv2.ellipse(
+        frame,
+        (cx + 28, head_y - 25),
+        (18, 5),
+        8,
+        0,
+        360,
+        (30, 25, 35),
+        -1,
+        cv2.LINE_AA,
+    )
+
+    # -------------------------
+    # Eyes & Blinking
+    # -------------------------
+    blink_phase = index % 90
+    if 42 <= blink_phase <= 48:
+        # Closed eyes during blink
+        cv2.line(
+            frame,
+            (cx - 40, head_y - 8),
+            (cx - 16, head_y - 8),
+            (35, 25, 20),
+            4,
+            cv2.LINE_AA,
+        )
+        cv2.line(
+            frame,
+            (cx + 16, head_y - 8),
+            (cx + 40, head_y - 8),
+            (35, 25, 20),
+            4,
+            cv2.LINE_AA,
+        )
+    else:
+        # Open eyes (Sclera + Iris + Pupil + Catchlight)
+        ellipse(
+            frame,
+            (cx - 28, head_y - 8),
+            (15, 9),
+            color=(250, 250, 252),
+        )
+        ellipse(
+            frame,
+            (cx + 28, head_y - 8),
+            (15, 9),
+            color=(250, 250, 252),
+        )
+        cv2.circle(frame, (cx - 28, head_y - 8), 6, (40, 35, 45), -1, cv2.LINE_AA)
+        cv2.circle(frame, (cx + 28, head_y - 8), 6, (40, 35, 45), -1, cv2.LINE_AA)
+        cv2.circle(frame, (cx - 28, head_y - 8), 3, (15, 10, 15), -1, cv2.LINE_AA)
+        cv2.circle(frame, (cx + 28, head_y - 8), 3, (15, 10, 15), -1, cv2.LINE_AA)
+        cv2.circle(frame, (cx - 26, head_y - 10), 2, (255, 255, 255), -1, cv2.LINE_AA)
+        cv2.circle(frame, (cx + 30, head_y - 10), 2, (255, 255, 255), -1, cv2.LINE_AA)
+
+    # -------------------------
+    # Nose
+    # -------------------------
+    cv2.line(
+        frame,
+        (cx, head_y - 5),
+        (cx - 4, head_y + 20),
+        (120, 135, 160),
+        2,
+        cv2.LINE_AA,
+    )
+    cv2.ellipse(
+        frame,
+        (cx, head_y + 22),
+        (10, 6),
+        0,
+        0,
+        360,
+        (120, 135, 160),
+        -1,
+        cv2.LINE_AA,
+    )
+    cv2.circle(frame, (cx - 5, head_y + 23), 2, (50, 50, 70), -1, cv2.LINE_AA)
+    cv2.circle(frame, (cx + 5, head_y + 23), 2, (50, 50, 70), -1, cv2.LINE_AA)
+
+    # -------------------------
+    # Mouth (Dynamic talking)
+    # -------------------------
+    mouth_open = int(index / 12) % 2 == 0
+    if mouth_open:
+        ellipse(
+            frame,
+            (cx, head_y + 48),
+            (18, 9),
+            color=(80, 50, 150),
+        )
+        ellipse(
+            frame,
+            (cx, head_y + 48),
+            (12, 5),
+            color=(30, 20, 50),
+        )
+    else:
+        cv2.line(
+            frame,
+            (cx - 16, head_y + 48),
+            (cx + 16, head_y + 48),
+            (80, 50, 150),
+            4,
+            cv2.LINE_AA,
+        )
+
+    # -------------------------
+    # Static left arm
+    # -------------------------
+    shoulder_l = (cx - 65, 330)
+    elbow_l = (cx - 115, 385)
+    hand_l = (cx - 130, 420)
+
+    cv2.line(frame, shoulder_l, elbow_l, (145, 165, 215), 25, cv2.LINE_AA)
+    cv2.line(frame, elbow_l, hand_l, (145, 165, 215), 22, cv2.LINE_AA)
+    ellipse(frame, hand_l, (18, 18), color=(145, 165, 215))
+
+    # -------------------------
+    # Moving right arm & Hand
+    # -------------------------
+    wave = math.sin(t * 3.0)
+    shoulder_r = (cx + 65, 330)
+    elbow_r = (cx + 120 + int(20 * wave), 360 + int(20 * wave))
+    hand_r = (cx + 145 + int(70 * wave), 300 + int(55 * wave))
+
+    cv2.line(frame, shoulder_r, elbow_r, (145, 165, 215), 25, cv2.LINE_AA)
+    cv2.line(frame, elbow_r, hand_r, (145, 165, 215), 22, cv2.LINE_AA)
+    ellipse(frame, hand_r, (20, 20), color=(145, 165, 215))
+
+    # Fingers
+    for finger_angle in (-0.8, -0.4, 0.0, 0.4, 0.8):
+        dx = int(25 * math.cos(finger_angle))
+        dy = int(25 * math.sin(finger_angle))
+        cv2.line(
+            frame,
+            hand_r,
+            (hand_r[0] + dx, hand_r[1] + dy),
+            (145, 165, 215),
+            7,
+            cv2.LINE_AA,
+        )
+
+
+def generate(output: Path) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
 
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
+    writer = cv2.VideoWriter(
+        str(output),
+        fourcc,
+        FPS,
+        (WIDTH, HEIGHT),
+    )
 
-    for t in range(num_frames):
-        # 1. Static Studio Room Background (Wall, Poster, Bookshelf)
-        frame = np.zeros((height, width, 3), dtype=np.uint8)
-        frame[:] = [210, 218, 225]  # Soft neutral studio wall
+    if not writer.isOpened():
+        raise RuntimeError(f"Could not open video writer: {output}")
 
-        # Wall Poster
-        cv2.rectangle(frame, (40, 30), (150, 140), (140, 110, 80), -1)
-        cv2.rectangle(frame, (45, 35), (145, 135), (230, 210, 180), -1)
-        cv2.circle(frame, (95, 85), 22, (100, 160, 220), -1)
+    try:
+        for index in range(FRAMES):
+            frame = np.zeros((HEIGHT, WIDTH, 3), dtype=np.uint8)
+            frame[:] = (50, 40, 35)  # Dark neutral background in BGR
 
-        # Bookshelf on the right
-        cv2.rectangle(frame, (490, 20), (610, 210), (80, 50, 30), -1)
-        for shelf_y in [75, 135, 195]:
-            cv2.line(frame, (490, shelf_y), (610, shelf_y), (60, 35, 20), 4)
-            cv2.rectangle(frame, (500, shelf_y - 42), (520, shelf_y), (180, 70, 60), -1)
-            cv2.rectangle(frame, (530, shelf_y - 46), (555, shelf_y), (70, 140, 90), -1)
-            cv2.rectangle(frame, (565, shelf_y - 38), (590, shelf_y), (210, 180, 50), -1)
+            # Simple floor
+            cv2.line(frame, (0, 455), (WIDTH, 455), (100, 100, 100), 3)
 
-        # 2. Moving Humanoid Creator (Sitting at center desk)
-        head_drift_x = int(10 * math.sin(t * 0.10))
-        head_drift_y = int(5 * math.cos(t * 0.08))
-        cx = width // 2 + head_drift_x
-        cy = height // 2 - 25 + head_drift_y
+            draw_person(frame, index)
 
-        # Body / Shoulders (Navy studio shirt)
-        body_pts = np.array([
-            [cx - 110, height - 30],
-            [cx + 110, height - 30],
-            [cx + 85, cy + 85],
-            [cx - 85, cy + 85],
-        ], dtype=np.int32)
-        cv2.fillPoly(frame, [body_pts], (45, 40, 65))
+            # Scene title
+            cv2.putText(
+                frame,
+                "ANIMATED CREATOR VISION FIXTURE",
+                (18, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (220, 220, 220),
+                1,
+                cv2.LINE_AA,
+            )
 
-        # Collar & Neck
-        cv2.rectangle(frame, (cx - 20, cy + 50), (cx + 20, cy + 90), (195, 165, 145), -1)
-        collar_pts = np.array([[cx - 30, cy + 85], [cx + 30, cy + 85], [cx, cy + 110]], dtype=np.int32)
-        cv2.fillPoly(frame, [collar_pts], (230, 230, 235))
+            writer.write(frame)
+    finally:
+        writer.release()
 
-        # Head / Face Oval (Natural skin tone with slight shading)
-        cv2.ellipse(frame, (cx, cy), (52, 70), 0, 0, 360, (190, 165, 145), -1)
+    print(f"Created: {output}")
+    print(f"Frames:  {FRAMES}")
+    print(f"FPS:     {FPS}")
+    print(f"Size:    {WIDTH}x{HEIGHT}")
 
-        # Hair (Anime styled bangs & silhouette)
-        hair_pts = np.array([
-            [cx - 56, cy - 10],
-            [cx - 60, cy - 60],
-            [cx - 22, cy - 78],
-            [cx + 28, cy - 75],
-            [cx + 60, cy - 55],
-            [cx + 55, cy - 10],
-            [cx + 38, cy - 38],
-            [cx, cy - 42],
-            [cx - 32, cy - 38],
-        ], dtype=np.int32)
-        cv2.fillPoly(frame, [hair_pts], (35, 30, 45))
 
-        # Eyebrows
-        cv2.ellipse(frame, (cx - 22, cy - 22), (15, 4), -8, 0, 360, (30, 25, 35), -1)
-        cv2.ellipse(frame, (cx + 22, cy - 22), (15, 4), 8, 0, 360, (30, 25, 35), -1)
-
-        # Eyes with natural sclera, iris, pupil & catchlight
-        eye_open = 1 if (t % 28 < 24) else 0  # Natural blink cycle
-        if eye_open:
-            # White sclera
-            cv2.ellipse(frame, (cx - 22, cy - 8), (13, 8), 0, 0, 360, (250, 250, 252), -1)
-            cv2.ellipse(frame, (cx + 22, cy - 8), (13, 8), 0, 0, 360, (250, 250, 252), -1)
-            # Dark iris
-            cv2.circle(frame, (cx - 22, cy - 8), 6, (55, 40, 35), -1)
-            cv2.circle(frame, (cx + 22, cy - 8), 6, (55, 40, 35), -1)
-            # Black pupil
-            cv2.circle(frame, (cx - 22, cy - 8), 3, (15, 10, 10), -1)
-            cv2.circle(frame, (cx + 22, cy - 8), 3, (15, 10, 10), -1)
-            # Specular catchlight
-            cv2.circle(frame, (cx - 20, cy - 10), 2, (255, 255, 255), -1)
-            cv2.circle(frame, (cx + 24, cy - 10), 2, (255, 255, 255), -1)
-        else:
-            # Closed eye contour during blink
-            cv2.line(frame, (cx - 30, cy - 8), (cx - 14, cy - 8), (35, 30, 30), 2)
-            cv2.line(frame, (cx + 14, cy - 8), (cx + 30, cy - 8), (35, 30, 30), 2)
-
-        # Nose bridge & nostrils
-        cv2.line(frame, (cx, cy - 5), (cx - 3, cy + 16), (160, 135, 120), 2)
-        cv2.ellipse(frame, (cx, cy + 18), (8, 5), 0, 0, 360, (160, 135, 120), -1)
-        cv2.circle(frame, (cx - 4, cy + 19), 2, (80, 60, 50), -1)
-        cv2.circle(frame, (cx + 4, cy + 19), 2, (80, 60, 50), -1)
-
-        # Dynamic Mouth (Viseme speech movement)
-        mouth_open = int(2 + 6 * abs(math.sin(t * 0.35)))
-        cv2.ellipse(frame, (cx, cy + 38), (14, mouth_open + 2), 0, 0, 360, (140, 80, 95), -1)
-        if mouth_open > 3:
-            cv2.ellipse(frame, (cx, cy + 38), (10, mouth_open - 2), 0, 0, 360, (50, 15, 25), -1)
-            cv2.rectangle(frame, (cx - 6, cy + 35), (cx + 6, cy + 37), (240, 240, 240), -1)
-
-        # 3. Creator Gesturing Hand (Moving across frames 8 to 52)
-        hand_progress = np.clip((t - 8) / 44.0, 0.0, 1.0)
-        hand_x = int((width // 2 - 130) + hand_progress * 260)
-        hand_y = int(height // 2 + 65 - 30 * math.sin(hand_progress * math.pi))
-        
-        # Arm connecting to body
-        cv2.line(frame, (cx - 85, cy + 85), (hand_x, hand_y), (45, 40, 65), 18)
-        # Palm
-        cv2.ellipse(frame, (hand_x, hand_y), (16, 20), 0, 0, 360, (190, 165, 145), -1)
-        # 5 Articulated Fingers
-        for finger_i in range(5):
-            fx = hand_x - 14 + finger_i * 7
-            fy_tip = hand_y - 18 - (4 if finger_i in [1, 2] else 0)
-            cv2.line(frame, (fx, hand_y), (fx, fy_tip), (180, 155, 135), 4)
-            cv2.circle(frame, (fx, fy_tip), 2, (180, 155, 135), -1)
-
-        # 4. Desk Foreground (Laptop & Studio Microphone)
-        desk_y = height - 70
-        cv2.rectangle(frame, (0, desk_y), (width, height), (75, 55, 45), -1)
-
-        # Laptop (Right side of desk)
-        cv2.rectangle(frame, (380, desk_y - 45), (490, desk_y + 10), (130, 135, 140), -1)
-        cv2.rectangle(frame, (385, desk_y - 40), (485, desk_y), (60, 120, 180), -1)
-
-        # Creator Microphone (Left/Center foreground)
-        cv2.circle(frame, (180, desk_y - 30), 22, (50, 50, 55), -1)
-        cv2.rectangle(frame, (170, desk_y - 30), (190, desk_y + 20), (40, 40, 45), -1)
-        cv2.line(frame, (180, desk_y + 20), (180, desk_y + 55), (30, 30, 35), 6)
-
-        writer.write(frame)
-
-    writer.release()
-    return output_path
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path(__file__).parent / "creator_test_video.mp4",
+    )
+    args = parser.parse_args()
+    generate(args.output)
 
 
 if __name__ == "__main__":
-    out = Path("tests/fixtures/creator_test_video.mp4")
-    print(f"Generating synthetic creator fixture at {out}...")
-    generate_synthetic_creator_video(out, num_frames=60)
-    print("Generation complete!")
+    main()
