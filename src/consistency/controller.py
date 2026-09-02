@@ -1,12 +1,141 @@
-﻿"""Temporal Decision Controller for Keyframe and Conditioning Management."""
-from typing import Optional
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Optional
 import numpy as np
 
-from src.consistency.types import TemporalState, RenderDecision, ReferenceProfile
+from src.consistency.types import TemporalState, ReferenceProfile
 from src.consistency.scene import SceneDetector
 from src.consistency.motion import MotionAnalyzer
 from src.consistency.identity import IdentityScorer
 from src.vision.models import MotionData
+
+
+@dataclass
+class RenderDecision:
+    frame_index: int
+    scene_id: int
+
+    keyframe: bool
+    scene_cut: bool
+
+    motion_score: float
+
+    reference_strength: float
+
+    reason: str
+
+    # Backwards-compatibility properties / attributes
+    timestamp: float = 0.0
+    preserve_previous: bool = True
+    similarity_warning: bool = False
+
+    @property
+    def is_keyframe(self) -> bool:
+        return self.keyframe
+
+    @property
+    def is_scene_cut(self) -> bool:
+        return self.scene_cut
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "frame_index": self.frame_index,
+            "timestamp": round(self.timestamp, 4),
+            "scene_id": self.scene_id,
+            "keyframe": self.keyframe,
+            "scene_cut": self.scene_cut,
+            "motion_score": round(self.motion_score, 4),
+            "reference_strength": round(self.reference_strength, 3),
+            "preserve_previous": self.preserve_previous,
+            "similarity_warning": self.similarity_warning,
+            "reason": self.reason,
+        }
+
+
+class IdentityRenderController:
+    """Decides keyframe scheduling, scene transitions, and reference conditioning strengths."""
+
+    def __init__(
+        self,
+        keyframe_interval: int = 12,
+        motion_threshold: float = 0.22,
+    ):
+        self.keyframe_interval = keyframe_interval
+        self.motion_threshold = motion_threshold
+
+    def decide(
+        self,
+        frame_index: int,
+        scene_id: int,
+        scene_cut: bool,
+        motion_score: float,
+    ) -> RenderDecision:
+        if scene_cut:
+            return RenderDecision(
+                frame_index=frame_index,
+                scene_id=scene_id,
+                keyframe=True,
+                scene_cut=True,
+                motion_score=motion_score,
+                reference_strength=0.85,
+                preserve_previous=False,
+                reason="scene_cut",
+            )
+
+        if frame_index == 0:
+            return RenderDecision(
+                frame_index=frame_index,
+                scene_id=scene_id,
+                keyframe=True,
+                scene_cut=False,
+                motion_score=motion_score,
+                reference_strength=0.85,
+                preserve_previous=False,
+                reason="first_frame",
+            )
+
+        if (
+            frame_index
+            % self.keyframe_interval
+            == 0
+        ):
+            return RenderDecision(
+                frame_index=frame_index,
+                scene_id=scene_id,
+                keyframe=True,
+                scene_cut=False,
+                motion_score=motion_score,
+                reference_strength=0.75,
+                preserve_previous=True,
+                reason="scheduled_keyframe",
+            )
+
+        if (
+            motion_score
+            >= self.motion_threshold
+        ):
+            return RenderDecision(
+                frame_index=frame_index,
+                scene_id=scene_id,
+                keyframe=True,
+                scene_cut=False,
+                motion_score=motion_score,
+                reference_strength=0.70,
+                preserve_previous=False,
+                reason="high_motion",
+            )
+
+        return RenderDecision(
+            frame_index=frame_index,
+            scene_id=scene_id,
+            keyframe=False,
+            scene_cut=False,
+            motion_score=motion_score,
+            reference_strength=0.55,
+            preserve_previous=True,
+            reason="intermediate",
+        )
 
 
 class TemporalController:
@@ -37,7 +166,6 @@ class TemporalController:
         frame_rgb: np.ndarray,
         motion_data: Optional[MotionData] = None,
     ) -> RenderDecision:
-        """Determines if a frame is a scene cut, keyframe, or intermediate temporal neighbor."""
         # 1. Check Scene Cut
         is_scene_cut, scene_id = self.scene_detector.process(frame_rgb)
 
@@ -54,7 +182,6 @@ class TemporalController:
 
         # 4. Decision Logic
         if frame_index == 0 or is_scene_cut:
-            # First frame or Scene Cut Reset
             self.state.scene_id = scene_id
             self.state.last_keyframe_idx = frame_index
             self.state.frames_since_keyframe = 0
@@ -63,8 +190,8 @@ class TemporalController:
                 frame_index=frame_index,
                 timestamp=timestamp,
                 scene_id=scene_id,
-                is_scene_cut=is_scene_cut,
-                is_keyframe=True,
+                scene_cut=is_scene_cut,
+                keyframe=True,
                 motion_score=motion_score,
                 reference_strength=self.ref_strength_kf,
                 preserve_previous=False,
@@ -75,15 +202,14 @@ class TemporalController:
         self.state.frames_since_keyframe += 1
 
         if is_high_motion:
-            # Rapid gesture / sudden movement
             self.state.last_keyframe_idx = frame_index
             self.state.frames_since_keyframe = 0
             return RenderDecision(
                 frame_index=frame_index,
                 timestamp=timestamp,
                 scene_id=scene_id,
-                is_scene_cut=False,
-                is_keyframe=True,
+                scene_cut=False,
+                keyframe=True,
                 motion_score=motion_score,
                 reference_strength=self.ref_strength_kf,
                 preserve_previous=False,
@@ -92,15 +218,14 @@ class TemporalController:
             )
 
         if self.state.frames_since_keyframe >= self.keyframe_interval:
-            # Regular anchor interval
             self.state.last_keyframe_idx = frame_index
             self.state.frames_since_keyframe = 0
             return RenderDecision(
                 frame_index=frame_index,
                 timestamp=timestamp,
                 scene_id=scene_id,
-                is_scene_cut=False,
-                is_keyframe=True,
+                scene_cut=False,
+                keyframe=True,
                 motion_score=motion_score,
                 reference_strength=self.ref_strength_kf,
                 preserve_previous=True,
@@ -108,13 +233,12 @@ class TemporalController:
                 reason="interval_keyframe",
             )
 
-        # Standard intermediate neighbor frame
         return RenderDecision(
             frame_index=frame_index,
             timestamp=timestamp,
             scene_id=scene_id,
-            is_scene_cut=False,
-            is_keyframe=False,
+            scene_cut=False,
+            keyframe=False,
             motion_score=motion_score,
             reference_strength=self.ref_strength_inter,
             preserve_previous=True,
