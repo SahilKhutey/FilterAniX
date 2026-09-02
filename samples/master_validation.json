@@ -1,0 +1,12 @@
+{
+  "valid": true,
+  "path": "C:\\Users\\ASUS\\Documents\\FilterAniX\\samples\\youtube_master.mp4",
+  "resolution": "1280x360",
+  "fps": 30.0,
+  "video_duration": 2.0,
+  "audio_duration": 2.0,
+  "drift_seconds": 0.0,
+  "has_video": true,
+  "has_audio": true,
+  "warnings": []
+}
