@@ -1,0 +1,31 @@
+﻿# FilterAniX Pipeline Configuration
+pipeline:
+  target_width: 1280
+  target_height: 720
+  target_fps: 30
+  device: "auto" # "cuda", "cpu", "auto"
+
+vision:
+  enable_segmentation: true
+  enable_face_mesh: true
+  enable_pose_tracking: true
+  enable_hand_tracking: true
+  optical_flow_algorithm: "dis" # "dis", "farneback"
+  optical_flow_preset: "medium" # "ultrafast", "fast", "medium"
+  background_accumulation_frames: 30 # Frames used to build anchor background plate
+
+temporal:
+  enable_temporal_warping: true
+  enable_deflicker: true
+  warp_blend_alpha: 0.65 # Weight given to flow-warped previous stylized frame
+  temporal_window_size: 5 # Moving average window for deflicker
+  occlusion_threshold: 1.5 # Flow magnitude error threshold for occlusion detection
+
+compositor:
+  line_art_blend_mode: "multiply" # "multiply", "overlay", "soft_light"
+  line_opacity: 0.90
+  add_cinematic_vignette: true
+  vignette_strength: 0.25
+  add_soft_bloom: true
+  bloom_strength: 0.15
+  color_grading_strength: 0.85

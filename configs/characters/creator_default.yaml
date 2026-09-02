@@ -1,0 +1,16 @@
+﻿# Character Identity Specification
+character_id: "creator_default"
+name: "Anime Creator"
+
+appearance:
+  skin_preset: "anime_peach" # "anime_peach", "warm_tan", "pale_porcelain", "deep_bronze"
+  skin_rgb_target: [248, 222, 204]
+  hair_accent_color: [45, 45, 60]
+  eye_enhancement:
+    enable: true
+    saturation_boost: 1.35
+    catchlight_boost: 1.25
+    contour_strength: 1.20
+  clothing:
+    edge_accent_strength: 1.25
+    fold_shadow_depth: 0.80

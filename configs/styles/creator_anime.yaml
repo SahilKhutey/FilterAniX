@@ -1,0 +1,42 @@
+﻿# Creator Anime Style Profile
+name: "Creator Anime"
+version: "1.0"
+
+line_art:
+  algorithm: "xdog" # "xdog", "adaptive", "canny_sobel"
+  sigma: 0.8
+  k_sigma: 1.6
+  gamma: 0.98
+  epsilon: -0.1
+  phi: 10.0
+  line_weight: 1.4
+  line_color_tint: [25, 20, 30] # Soft dark purple/brown ink instead of harsh black
+
+cel_shading:
+  smoothing_method: "kuwahara_bilateral"
+  bilateral_diameter: 9
+  bilateral_sigma_color: 60.0
+  bilateral_sigma_space: 45.0
+  kuwahara_radius: 4
+  quantization_levels: 7 # Distinct shade steps for anime look
+  shadow_depth: 0.75 # Darkens cast shadows for dramatic lighting
+
+environment:
+  illustration_strength: 0.70
+  background_blur: 0.0 # Keep crisp illustrated background
+  saturation_boost: 1.15
+  contrast_boost: 1.10
+
+lighting:
+  cinematic_warmth: 0.70 # Warm key light (golden hour / studio lights)
+  key_light_color: [255, 240, 215]
+  shadow_coolness: 0.40 # Anime style cool ambient shadows
+  shadow_color: [70, 75, 110]
+  bloom_threshold: 210
+  bloom_radius: 15
+
+color:
+  skin_tone_protection: true
+  skin_warmth_boost: 1.08
+  global_saturation: 1.20
+  global_contrast: 1.12

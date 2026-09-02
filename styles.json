@@ -1,0 +1,57 @@
+﻿{
+  "anime_creator": {
+    "name": "Anime Creator",
+    "description": "Clean anime-style 2D illustration with expressive features and warm studio lighting.",
+    "renderer": "opencv",
+    "line_weight": 1.4,
+    "line_tint": [30, 24, 38],
+    "shading_levels": 6,
+    "color_warmth": 0.70,
+    "contrast_boost": 1.12,
+    "saturation_boost": 1.20
+  },
+  "clean_illustration": {
+    "name": "Clean Illustration",
+    "description": "Crisp editorial vector-like illustration with flat shading and distinct silhouette lines.",
+    "renderer": "opencv",
+    "line_weight": 1.2,
+    "line_tint": [20, 20, 25],
+    "shading_levels": 8,
+    "color_warmth": 0.50,
+    "contrast_boost": 1.08,
+    "saturation_boost": 1.10
+  },
+  "comic": {
+    "name": "Comic Book",
+    "description": "Bold ink contours, punchy graphic contrast, and saturated comic tones.",
+    "renderer": "opencv",
+    "line_weight": 2.0,
+    "line_tint": [10, 10, 15],
+    "shading_levels": 4,
+    "color_warmth": 0.40,
+    "contrast_boost": 1.25,
+    "saturation_boost": 1.30
+  },
+  "watercolor": {
+    "name": "Watercolor Painting",
+    "description": "Soft gouache and watercolor texture with delicate lines and dreamy highlight bloom.",
+    "renderer": "opencv",
+    "line_weight": 0.9,
+    "line_tint": [50, 40, 50],
+    "shading_levels": 10,
+    "color_warmth": 0.80,
+    "contrast_boost": 1.05,
+    "saturation_boost": 1.15
+  },
+  "manga": {
+    "name": "Manga Screentone",
+    "description": "Monochrome Japanese manga aesthetic with high-contrast ink lines.",
+    "renderer": "opencv",
+    "line_weight": 1.8,
+    "line_tint": [15, 15, 20],
+    "shading_levels": 3,
+    "color_warmth": 0.0,
+    "contrast_boost": 1.40,
+    "saturation_boost": 0.0
+  }
+}

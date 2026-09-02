@@ -1,0 +1,37 @@
+﻿# Cinematic Manga Style Profile
+name: "Cinematic Manga"
+version: "1.0"
+
+line_art:
+  algorithm: "xdog"
+  sigma: 0.6
+  k_sigma: 1.8
+  gamma: 0.95
+  epsilon: -0.2
+  phi: 15.0
+  line_weight: 1.8
+  line_color_tint: [10, 10, 15]
+
+cel_shading:
+  smoothing_method: "bilateral"
+  bilateral_diameter: 11
+  bilateral_sigma_color: 80.0
+  bilateral_sigma_space: 50.0
+  quantization_levels: 4
+  shadow_depth: 0.90
+
+environment:
+  illustration_strength: 0.90
+  screentone_enabled: true
+  screentone_frequency: 35.0
+  screentone_angle: 45.0
+
+lighting:
+  cinematic_warmth: 0.0
+  shadow_coolness: 0.0
+  bloom_threshold: 240
+  bloom_radius: 10
+
+color:
+  monochrome: true
+  global_contrast: 1.35

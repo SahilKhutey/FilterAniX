@@ -1,0 +1,24 @@
+﻿{
+  "app_name": "Animated Creator - Phase 1",
+  "version": "1.0.0",
+  "pipeline": {
+    "default_codec": "mp4v",
+    "ffmpeg_video_codec": "libx264",
+    "ffmpeg_audio_codec": "aac",
+    "ffmpeg_crf": 18,
+    "ffmpeg_preset": "medium",
+    "temp_dir": "temp_processing",
+    "preview_fps": 30
+  },
+  "camera": {
+    "default_index": 0,
+    "default_width": 1280,
+    "default_height": 720,
+    "default_fps": 30
+  },
+  "ui": {
+    "window_width": 1150,
+    "window_height": 800,
+    "theme": "dark"
+  }
+}
