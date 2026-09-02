@@ -1,9 +1,15 @@
-﻿"""Synthetic Test Video Generator & Smoke Test Suite."""
+"""Synthetic Test Video Generator & Smoke Test Suite."""
 import math
 from pathlib import Path
+import sys
 import cv2
 import numpy as np
 import pytest
+
+# Ensure archive directory is in sys.path
+ARCHIVE_DIR = Path(__file__).resolve().parent.parent / "archive"
+if str(ARCHIVE_DIR) not in sys.path:
+    sys.path.insert(0, str(ARCHIVE_DIR))
 
 from filteranix.core.config import load_config
 from filteranix.pipeline.offline_pipeline import OfflineVideoPipeline

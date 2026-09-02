@@ -1,12 +1,15 @@
-﻿"""FilterAniX Prototype v0.1 CLI Runner."""
+"""FilterAniX Prototype v0.1 CLI Runner."""
 import argparse
 import sys
 from pathlib import Path
 
-# Ensure root directory is in sys.path
-ROOT_DIR = Path(__file__).resolve().parent
+# Ensure root directory and archive directory are in sys.path
+ROOT_DIR = Path(__file__).resolve().parent.parent
+ARCHIVE_DIR = Path(__file__).resolve().parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
+if str(ARCHIVE_DIR) not in sys.path:
+    sys.path.insert(0, str(ARCHIVE_DIR))
 
 from filteranix.core.config import load_config
 from filteranix.pipeline.offline_pipeline import OfflineVideoPipeline
@@ -58,7 +61,7 @@ def main():
 
     input_file = args.input
     if args.synthetic_demo or not input_file:
-        from tests.test_pipeline_smoke import generate_synthetic_creator_video
+        from tests.test_archive_offline_pipeline_smoke import generate_synthetic_creator_video
         synthetic_path = Path("samples/synthetic_creator_test.mp4")
         if not synthetic_path.exists() or args.synthetic_demo:
             print(f"[*] Generating synthetic 60-frame creator test scene at {synthetic_path}...")
