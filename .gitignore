@@ -1,0 +1,67 @@
+﻿# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# C extensions
+*.so
+*.pyd
+
+# Models and Weights
+*.pt
+*.pth
+*.bin
+*.onnx
+*.safetensors
+models/
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Pytest / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary and Project Outputs
+temp_processing/
+projects/
+analysis_output/
+image_output/
+*.log
+
+# Keep sample placeholders but ignore generated heavy videos
+samples/*.mp4
+samples/*.m4a
+!samples/.gitkeep
+!samples/test_phase1_input.mp4
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
