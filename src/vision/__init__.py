@@ -7,9 +7,21 @@ try:
 except Exception:
     pass
 
+from src.vision.types import (
+    Point,
+    BoundingBox,
+    FaceObservation,
+    HandObservation,
+    PoseObservation,
+    MotionObservation,
+    VisionFrame,
+)
+from src.vision.schema import validate_vision_frame
+from src.vision.jsonl import write_vision_jsonl, read_vision_jsonl
+from src.vision.alignment import validate_frame_sequence
+from src.vision.utils import clamp_confidence
 from src.vision.models import (
     Landmark,
-    BoundingBox,
     FaceData,
     PoseData,
     HandData,
@@ -28,8 +40,19 @@ from src.vision.visualizer import VisionVisualizer
 from src.vision.vision_pipeline import VisionEngine
 
 __all__ = [
-    "Landmark",
+    "Point",
     "BoundingBox",
+    "FaceObservation",
+    "HandObservation",
+    "PoseObservation",
+    "MotionObservation",
+    "VisionFrame",
+    "validate_vision_frame",
+    "write_vision_jsonl",
+    "read_vision_jsonl",
+    "validate_frame_sequence",
+    "clamp_confidence",
+    "Landmark",
     "FaceData",
     "PoseData",
     "HandData",

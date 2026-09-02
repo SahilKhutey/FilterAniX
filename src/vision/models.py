@@ -1,4 +1,4 @@
-﻿"""Standardized Data Models for Phase 2 Vision & Scene Understanding."""
+"""Standardized Data Models for Phase 2 Vision & Scene Understanding."""
 from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, List, Optional
 
@@ -172,3 +172,7 @@ class FrameVisionData:
             "motion": self.motion.to_dict(),
             "objects": [obj.to_dict() for obj in self.objects],
         }
+
+    def to_canonical(self):
+        from src.vision.types import VisionFrame
+        return VisionFrame.from_frame_vision_data(self)

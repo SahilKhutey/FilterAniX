@@ -40,12 +40,11 @@ def main() -> None:
                 hands += 1
 
             # Check blink states
-            faces_data = data.get("faces")
-            if faces_data and len(faces_data) > 0:
-                f0 = faces_data[0]
-                ear = (f0.get("left_eye_ear", 0.0) + f0.get("right_eye_ear", 0.0)) / 2.0
-                state = "open" if ear > 0.15 else "closed"
-                blink_states[state] += 1
+            face_data = data.get("face") or {}
+            if isinstance(face_data, dict):
+                eye_state = face_data.get("eye_state")
+                if eye_state:
+                    blink_states[eye_state] += 1
 
     print()
     print("=== Synthetic Vision Diagnostics ===")
