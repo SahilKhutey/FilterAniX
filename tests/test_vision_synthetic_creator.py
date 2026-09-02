@@ -87,3 +87,37 @@ def test_vision_engine_synthetic_creator_detection(synthetic_video_fixture):
 
     # Motion tracking must detect frame movements
     assert motion_active_frames > 0
+
+
+def test_analyze_video_jsonl_output(synthetic_video_fixture, tmp_path):
+    """Verifies that analyze_video writes valid JSONL records matching frame count and generates summary."""
+    from analyze_video import analyze_video
+    import json
+
+    out_dir = tmp_path / "analysis_run"
+    analyze_video(str(synthetic_video_fixture), output_dir=str(out_dir), max_frames=20)
+
+    jsonl_path = out_dir / "vision.jsonl"
+    summary_path = out_dir / "summary.json"
+    annotated_path = out_dir / "annotated.mp4"
+
+    assert jsonl_path.exists()
+    assert summary_path.exists()
+    assert annotated_path.exists()
+
+    # Verify JSONL lines match frame count
+    lines = jsonl_path.read_text(encoding="utf-8").strip().split("\n")
+    assert len(lines) == 20
+
+    for i, line in enumerate(lines):
+        record = json.loads(line)
+        assert record["frame_index"] == i
+        assert record["width"] == 640
+        assert record["height"] == 360
+        assert "faces" in record
+        assert "motion" in record
+
+    # Verify summary JSON
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["total_frames_analyzed"] == 20
+    assert summary["frames_with_face"] >= 16
