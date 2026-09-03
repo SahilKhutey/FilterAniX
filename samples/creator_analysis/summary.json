@@ -1,0 +1,13 @@
+{
+  "source_video": "C:\\Users\\ASUS\\Documents\\FilterAniX\\samples\\A_pose_explaingn_Something_.mp4",
+  "resolution": "1280x720",
+  "fps": 24.0,
+  "total_frames_analyzed": 240,
+  "frames_with_face": 240,
+  "frames_with_pose": 240,
+  "frames_with_hands": 237,
+  "total_motion_energy": 118.37142201513052,
+  "mean_person_coverage": 0.2632,
+  "processing_time_sec": 84.14,
+  "processing_fps": 2.85
+}

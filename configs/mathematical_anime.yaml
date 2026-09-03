@@ -1,0 +1,93 @@
+backend: mathematical
+
+mathematical:
+
+  tone:
+    contrast: 1.08
+    gamma: 0.96
+    strength: 0.82
+
+  color:
+    saturation: 1.08
+    palette_mix: 0.60
+    levels: 12
+    temperature: 0.70
+
+  texture:
+    smooth_sigma: 1.15
+    suppression: 0.72
+    detail_retention: 0.28
+
+  line:
+    strength: 0.72
+    threshold: 0.16
+    softness: 0.055
+    darkness: 0.82
+
+  shadow:
+    threshold: 0.40
+    softness: 0.045
+    strength: 0.20
+
+  highlight:
+    threshold: 0.78
+    softness: 0.055
+    strength: 0.10
+
+  face:
+    enabled: true
+    contrast: 1.08
+    smoothing: 0.70
+    eye_emphasis: 1.12
+    detail_retention: 0.85
+    landmark_sigma: 18.0
+    feature_sigma: 6.0
+    geometry_strength: 0.90
+    smoothing_strength: 0.70
+    mouth_emphasis: 1.08
+    nose_emphasis: 1.05
+
+  background:
+    simplification: 0.65
+    detail_retention: 0.18
+
+  lighting:
+    warm_strength: 0.18
+    warm_temperature: 0.72
+
+  temporal:
+    strength: 0.12
+    motion_limit: 0.18
+    scene_cut_reset: true
+    temporal_strength: 0.12
+    temporal_motion_limit: 0.18
+    temporal_scene_cut_reset: true
+
+  processing:
+    working_scale: 1.0
+    output_dtype: uint8
+
+  palette:
+    - [248, 226, 198]
+    - [230, 188, 148]
+    - [202, 150, 112]
+    - [170, 122, 104]
+    - [128, 112, 120]
+    - [88, 78, 90]
+    - [48, 42, 50]
+    - [28, 25, 30]
+
+  line_tint:
+    - 32
+    - 27
+    - 34
+
+  key_light_color:
+    - 255
+    - 239
+    - 211
+
+  shadow_color:
+    - 66
+    - 70
+    - 94

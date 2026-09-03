@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from src.art.mathematical.config import MathematicalAnimeStyle
+
 
 class RendererBackend(str, Enum):
     MATHEMATICAL = "mathematical"
@@ -41,6 +43,12 @@ class StylePreset:
 @dataclass
 class StyleConfig:
     name: str = "anime_creator"
+
+    backend: RendererBackend = RendererBackend.MATHEMATICAL
+
+    mathematical: MathematicalAnimeStyle = field(
+        default_factory=MathematicalAnimeStyle.creator_anime
+    )
 
     # General image-to-image controls
     denoise_strength: float = 0.35
@@ -109,12 +117,53 @@ class StyleConfig:
     motion_limit: float = 0.18
 
     # General options
-    backend: RendererBackend = RendererBackend.MATHEMATICAL
     style: StylePreset = field(default_factory=StylePreset)
     enable_reference_palette: bool = True
     reference_image_path: str | None = None
     device: str = "auto"
     model_id: str | None = None
+
+    def to_mathematical_style(self) -> MathematicalAnimeStyle:
+        base = self.mathematical if self.mathematical is not None else MathematicalAnimeStyle.creator_anime()
+        overrides = {}
+        if self.tone_contrast != 1.08:
+            overrides["contrast"] = self.tone_contrast
+        if self.tone_gamma != 0.96:
+            overrides["gamma"] = self.tone_gamma
+        if self.tone_strength != 0.82:
+            overrides["tone_strength"] = self.tone_strength
+        if self.color_saturation != 1.12:
+            overrides["saturation"] = self.color_saturation
+        if self.color_palette_mix != 0.58:
+            overrides["palette_mix"] = self.color_palette_mix
+        if self.color_levels != 12:
+            overrides["color_levels"] = self.color_levels
+        if self.detail_strength != 0.18:
+            overrides["detail_retention"] = self.detail_strength
+        if self.edge_strength != 0.72:
+            overrides["edge_strength"] = self.edge_strength
+        if self.edge_threshold != 0.16:
+            overrides["edge_threshold"] = self.edge_threshold
+        if self.edge_softness != 0.055:
+            overrides["edge_softness"] = self.edge_softness
+        if self.shadow_threshold != 0.40:
+            overrides["shadow_threshold"] = self.shadow_threshold
+        if self.shadow_strength != 0.20:
+            overrides["shadow_strength"] = self.shadow_strength
+        if self.highlight_threshold != 0.78:
+            overrides["highlight_threshold"] = self.highlight_threshold
+        if self.highlight_strength != 0.10:
+            overrides["highlight_strength"] = self.highlight_strength
+        if self.motion_limit != 0.18:
+            overrides["temporal_motion_limit"] = self.motion_limit
+        if self.temporal_blend != 0.16:
+            overrides["temporal_strength"] = self.temporal_blend
+
+        if overrides:
+            data = base.to_dict()
+            data.update(overrides)
+            return MathematicalAnimeStyle(**data).validated()
+        return base.validated()
 
 
 @dataclass

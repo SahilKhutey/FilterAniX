@@ -11,7 +11,8 @@ from tqdm import tqdm
 from .opencv_renderer import OpenCVArtRenderer
 from .style_controller import StyleController
 from .temporal import TemporalStabilizer
-from .types import RenderConfig, StyleConfig
+from .types import RenderConfig, StyleConfig, RendererBackend
+from src.art.mathematical import MathematicalAnimeEngine
 from src.art.style_engine import StyleEngine
 from src.core.models import ProcessingProgress
 from src.io.video_io import inspect_video, create_video_writer, merge_audio_and_video
@@ -100,6 +101,7 @@ class VideoRenderer:
         self.fast_renderer = OpenCVArtRenderer()
         self.temporal = TemporalStabilizer(self.style_config.temporal_blend)
         self.mouth_renderer = MouthRenderer()
+        self.math_engine = MathematicalAnimeEngine(self.style_config.to_mathematical_style())
 
     def render_video(
         self,
@@ -211,6 +213,7 @@ class VideoRenderer:
                 # Scene cut or scene boundary isolation
                 if decision.is_scene_cut or (previous_scene_id is not None and decision.scene_id != previous_scene_id):
                     self.temporal.reset()
+                    self.math_engine.reset()
                     previous_source = None
                     previous_art = None
                     metrics.scene_cuts += 1

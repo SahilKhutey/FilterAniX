@@ -9,7 +9,7 @@ from src.art.preprocess import ControlBuilder
 from src.art.temporal import TemporalStabilizer
 from src.art.opencv_renderer import OpenCVIllustrationRenderer
 from src.art.diffusion_renderer import DiffusionRenderer
-from src.art.math_engine import MathematicalStyleEngine
+from src.art.mathematical import MathematicalAnimeEngine
 from src.vision.models import FrameVisionData
 
 
@@ -27,7 +27,8 @@ class StyleEngine:
         if self.config.backend == RendererBackend.DIFFUSERS:
             self.renderer = DiffusionRenderer(self.config)
         elif self.config.backend == RendererBackend.MATHEMATICAL:
-            self.renderer = MathematicalStyleEngine(self.config)
+            math_style = self.config.to_mathematical_style()
+            self.renderer = MathematicalAnimeEngine(math_style)
         else:
             self.renderer = OpenCVIllustrationRenderer(self.config.style)
 
@@ -48,7 +49,7 @@ class StyleEngine:
                 self.reset_temporal()
 
         # 1. Direct Mathematical Engine dispatch (processes every pixel deterministically)
-        if isinstance(self.renderer, MathematicalStyleEngine):
+        if isinstance(self.renderer, MathematicalAnimeEngine):
             return self.renderer.render(
                 rgb=rgb,
                 vision_data=vision_data,

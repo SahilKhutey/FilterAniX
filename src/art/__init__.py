@@ -8,6 +8,7 @@ from src.art.types import (
     RenderFrame,
     RenderResult,
 )
+from src.art.base import ArtisticRenderer
 from src.art.control_maps import (
     normalize_points,
     draw_pose_map,
@@ -19,6 +20,13 @@ from src.art.preprocess import ControlBuilder
 from src.art.temporal import TemporalStabilizer
 from src.art.opencv_renderer import OpenCVArtRenderer, OpenCVIllustrationRenderer
 from src.art.diffusion_renderer import DiffusionRenderer
+from src.art.math_engine import MathematicalStyleEngine
+from src.art.mathematical import (
+    MathematicalAnimeEngine,
+    MathematicalRenderer,
+    MathematicalAnimeStyle,
+    DEFAULT_ANIME_PALETTE,
+)
 from src.art.style_engine import StyleEngine
 from src.art.video_renderer import VideoRenderer, VideoStyleRenderer
 
@@ -30,6 +38,7 @@ __all__ = [
     "RenderConfig",
     "RenderFrame",
     "RenderResult",
+    "ArtisticRenderer",
     "normalize_points",
     "draw_pose_map",
     "build_edge_map",
@@ -40,6 +49,11 @@ __all__ = [
     "OpenCVArtRenderer",
     "OpenCVIllustrationRenderer",
     "DiffusionRenderer",
+    "MathematicalStyleEngine",
+    "MathematicalAnimeEngine",
+    "MathematicalRenderer",
+    "MathematicalAnimeStyle",
+    "DEFAULT_ANIME_PALETTE",
     "StyleEngine",
     "VideoRenderer",
     "VideoStyleRenderer",
