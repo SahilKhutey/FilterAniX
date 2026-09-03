@@ -18,6 +18,8 @@ class RenderMetrics:
 
     fallback_frames: int = 0
 
+    mathematical_frames: int = 0
+
     scene_cuts: int = 0
 
     render_seconds: float = 0.0

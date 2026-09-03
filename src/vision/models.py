@@ -160,6 +160,12 @@ class FrameVisionData:
     motion: MotionData = field(default_factory=MotionData)
     objects: List[ObjectData] = field(default_factory=list)
 
+    # Optional Neural Assistance Fields (Enable/Disable Feature)
+    neural_matte: Optional[Any] = None       # Soft portrait alpha matte (H, W, 1) in [0.0, 1.0]
+    neural_depth: Optional[Any] = None       # Relative depth field (H, W, 1) in [0.0, 1.0]
+    neural_flow: Optional[Any] = None        # Motion vector field (H, W, 2)
+    neural_telemetry: Dict[str, Any] = field(default_factory=dict)
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "frame_index": self.frame_index,

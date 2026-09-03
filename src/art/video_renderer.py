@@ -12,7 +12,7 @@ from .opencv_renderer import OpenCVArtRenderer
 from .style_controller import StyleController
 from .temporal import TemporalStabilizer
 from .types import RenderConfig, StyleConfig, RendererBackend
-from src.art.mathematical import MathematicalAnimeEngine
+from src.art.mathematical import MathematicalAnimeEngine, validate_render
 from src.art.style_engine import StyleEngine
 from src.core.models import ProcessingProgress
 from src.io.video_io import inspect_video, create_video_writer, merge_audio_and_video
@@ -259,59 +259,79 @@ class VideoRenderer:
                 # Build control map for ControlNet / structural guidance
                 control_map = self.style_controller.build_control_map(frame_bgr, vision)
 
-                # Render: Keyframe vs Optical Propagation
-                if decision.is_keyframe:
-                    metrics.keyframes += 1
-                    if keyframe_cache.exists(frame_index):
-                        animated = keyframe_cache.load(frame_index)
-                        metrics.fallback_frames += 1
-                    else:
-                        kf_res = keyframe_renderer.render(
-                            frame_index=frame_index,
-                            rgb=rgb,
-                            control_map=control_map,
-                            vision_data=vision_obj,
-                            reference_rgb=reference_rgb,
-                            reference_strength=decision.reference_strength,
-                        )
-                        animated = kf_res.frame
-                        keyframe_cache.save(frame_index, animated)
-                        if kf_res.backend == "diffusion" and not kf_res.used_fallback:
-                            metrics.diffusion_frames += 1
+                # Render: Canonical Mathematical Anime Engine (Primary) vs Optional Diffusion Subsystem
+                if self.style_config.backend == RendererBackend.DIFFUSERS:
+                    if decision.is_keyframe:
+                        metrics.keyframes += 1
+                        if keyframe_cache.exists(frame_index):
+                            animated = keyframe_cache.load(frame_index)
+                            metrics.fallback_frames += 1
                         else:
+                            kf_res = keyframe_renderer.render(
+                                frame_index=frame_index,
+                                rgb=rgb,
+                                control_map=control_map,
+                                vision_data=vision_obj,
+                                reference_rgb=reference_rgb,
+                                reference_strength=decision.reference_strength,
+                            )
+                            animated = kf_res.frame
+                            keyframe_cache.save(frame_index, animated)
+                            if kf_res.backend == "diffusion" and not kf_res.used_fallback:
+                                metrics.diffusion_frames += 1
+                            else:
+                                metrics.fallback_frames += 1
+
+                        if reference_rgb is None:
+                            reference_rgb = rgb.copy()
+                    else:
+                        # Intermediate frame: source-guided optical flow warping
+                        if previous_source is not None and previous_art is not None:
+                            animated = propagator.warp(
+                                previous_source=previous_source,
+                                current_source=rgb,
+                                previous_art=previous_art,
+                            )
+                            metrics.propagated_frames += 1
+                        else:
+                            # Fallback to fast renderer
+                            animated = self.fast_renderer.render(rgb, vision_data=vision_obj, lipsync_record=lip_rec)
                             metrics.fallback_frames += 1
 
+                    # Apply procedural mouth renderer based on Lip-Sync timeline
+                    mouth_bbox = get_mouth_bbox(vision_obj, width, height)
+                    if mouth_bbox is not None and viseme != "closed":
+                        animated = self.mouth_renderer.render(
+                            frame=animated,
+                            mouth_bbox=mouth_bbox,
+                            viseme=viseme,
+                        )
+
+                    # Temporal stabilization
+                    animated = self.temporal.apply(
+                        animated,
+                        scene_id=decision.scene_id,
+                        scene_cut=decision.is_scene_cut,
+                    )
+                else:
+                    # PRIMARY CANONICAL ARCHITECTURE:
+                    # Every frame submitted to Phase 3 passes through MathematicalAnimeEngine
+                    animated = self.math_engine.render(
+                        rgb=rgb,
+                        vision_data=vision_obj,
+                        scene_cut=decision.is_scene_cut,
+                        stabilize=True,
+                        lipsync_record=lip_rec,
+                        reference_rgb=reference_rgb,
+                    )
+                    metrics.mathematical_frames += 1
+                    if decision.is_keyframe:
+                        metrics.keyframes += 1
                     if reference_rgb is None:
                         reference_rgb = rgb.copy()
-                else:
-                    # Intermediate frame: source-guided optical flow warping
-                    if previous_source is not None and previous_art is not None:
-                        animated = propagator.warp(
-                            previous_source=previous_source,
-                            current_source=rgb,
-                            previous_art=previous_art,
-                        )
-                        metrics.propagated_frames += 1
-                    else:
-                        # Fallback to fast renderer
-                        animated = self.fast_renderer.render(rgb, vision_data=vision_obj, lipsync_record=lip_rec)
-                        metrics.fallback_frames += 1
 
-                # Apply procedural mouth renderer based on Lip-Sync timeline
-                mouth_bbox = get_mouth_bbox(vision_obj, width, height)
-                if mouth_bbox is not None and viseme != "closed":
-                    animated = self.mouth_renderer.render(
-                        frame=animated,
-                        mouth_bbox=mouth_bbox,
-                        viseme=viseme,
-                    )
-
-                # Temporal stabilization
-                animated = self.temporal.apply(
-                    animated,
-                    scene_id=decision.scene_id,
-                    scene_cut=decision.is_scene_cut,
-                )
+                # Enforce output quality gate
+                validate_render(rgb, animated)
 
                 # Prepare state for next frame
                 previous_source = rgb.copy()

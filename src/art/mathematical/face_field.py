@@ -882,23 +882,24 @@ class MathematicalFaceField:
 # Compatibility Functions for Compositor and Existing Pipeline
 # ======================================================================
 
-def compute_face_mask(
+def compute_semantic_face_masks(
     height: int,
     width: int,
     face_data: Any,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Computes soft Gaussian spatial masks for face, hair, and eye regions:
-        F(x,y) = exp(-((x - xc)^2 / rx^2 + (y - yc)^2 / ry^2))
-    Returns:
-        (face_mask, hair_mask, eye_mask): Each of shape (H, W, 1) in [0.0, 1.0] float32.
+    Computes fine-grained semantic sub-masks for face, hair, eyes, mouth, and skin:
+        (face_mask, hair_mask, eye_mask, mouth_mask, skin_mask)
+    Each mask is a float32 array of shape (height, width, 1) with values in [0.0, 1.0].
     """
     face_mask = np.zeros((height, width, 1), dtype=np.float32)
     hair_mask = np.zeros((height, width, 1), dtype=np.float32)
     eye_mask = np.zeros((height, width, 1), dtype=np.float32)
+    mouth_mask = np.zeros((height, width, 1), dtype=np.float32)
+    skin_mask = np.zeros((height, width, 1), dtype=np.float32)
 
     if face_data is None:
-        return face_mask, hair_mask, eye_mask
+        return face_mask, hair_mask, eye_mask, mouth_mask, skin_mask
 
     # Extract bounding box
     bx, by, bw, bh = 0, 0, 0, 0
@@ -915,7 +916,7 @@ def compute_face_mask(
         bh = int(b.get("height", 0.0) * height)
 
     if bw <= 0 or bh <= 0:
-        return face_mask, hair_mask, eye_mask
+        return face_mask, hair_mask, eye_mask, mouth_mask, skin_mask
 
     # Face center and radii
     xc = bx + bw / 2.0
@@ -938,14 +939,18 @@ def compute_face_mask(
     upper_weight = np.clip(1.0 - (y_coords - by) / max(bh * 0.65, 1e-3), 0.0, 1.0)
     hair_mask[:, :, 0] = np.clip(h_mask * upper_weight, 0.0, 1.0)
 
-    # Eye region from landmarks or estimated bounding box
+    # Eye and Mouth landmarks
     eye_pts: List[Tuple[int, int]] = []
+    mouth_pts: List[Tuple[int, int]] = []
     if hasattr(face_data, "landmarks") and face_data.landmarks:
         lms = face_data.landmarks
         if len(lms) >= 468:
             for idx in [33, 133, 159, 145, 263, 362, 386, 374]:
                 if idx < len(lms):
                     eye_pts.append((int(lms[idx].x * width), int(lms[idx].y * height)))
+            for idx in [61, 291, 13, 14, 78, 308]:
+                if idx < len(lms):
+                    mouth_pts.append((int(lms[idx].x * width), int(lms[idx].y * height)))
         elif len(lms) >= 6:
             for lm in lms[:6]:
                 eye_pts.append((int(lm.x * width), int(lm.y * height)))
@@ -968,7 +973,38 @@ def compute_face_mask(
         e_mask = np.exp(-e_dist_l * 1.5) + np.exp(-e_dist_r * 1.5)
         eye_mask[:, :, 0] = np.clip(e_mask.astype(np.float32), 0.0, 1.0)
 
-    return face_mask, hair_mask, eye_mask
+    # Mouth mask
+    if mouth_pts:
+        m_canvas = np.zeros((height, width), dtype=np.float32)
+        m_rad = max(4, int(bw * 0.06))
+        for px, py in mouth_pts:
+            if 0 <= px < width and 0 <= py < height:
+                cv2.circle(m_canvas, (px, py), m_rad, 1.0, -1)
+        m_canvas = cv2.GaussianBlur(m_canvas, (0, 0), sigmaX=m_rad * 0.7)
+        mouth_mask[:, :, 0] = np.clip(m_canvas, 0.0, 1.0)
+    else:
+        m_yc = by + bh * 0.75
+        m_xc = bx + bw * 0.50
+        m_rx = max(4.0, bw * 0.22)
+        m_ry = max(3.0, bh * 0.12)
+        m_dist = ((x_coords - m_xc) / m_rx) ** 2 + ((y_coords - m_yc) / m_ry) ** 2
+        m_mask = np.exp(-m_dist * 2.0).astype(np.float32)
+        mouth_mask[:, :, 0] = np.clip(m_mask, 0.0, 1.0)
+
+    # Skin mask: face area excluding eyes and mouth
+    skin_mask[:, :, 0] = np.clip(face_mask[:, :, 0] - eye_mask[:, :, 0] * 0.85 - mouth_mask[:, :, 0] * 0.85, 0.0, 1.0)
+
+    return face_mask, hair_mask, eye_mask, mouth_mask, skin_mask
+
+
+def compute_face_mask(
+    height: int,
+    width: int,
+    face_data: Any,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Backwards-compatible wrapper returning (face_mask, hair_mask, eye_mask)."""
+    f_mask, h_mask, e_mask, _, _ = compute_semantic_face_masks(height, width, face_data)
+    return f_mask, h_mask, e_mask
 
 
 def apply_face_modulation(

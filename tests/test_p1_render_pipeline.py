@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 
 from src.art.video_renderer import VideoRenderer
-from src.art.types import StyleConfig
+from src.art.types import StyleConfig, RendererBackend
 from src.art.render_metrics import RenderMetrics
 
 
@@ -70,7 +70,7 @@ def test_video_renderer_p1_execution(tmp_path):
                 "faces": [],
             }) + "\n")
 
-    renderer = VideoRenderer(config=StyleConfig(keyframe_interval=6))
+    renderer = VideoRenderer(config=StyleConfig(keyframe_interval=6, backend=RendererBackend.DIFFUSERS))
     res = renderer.render_video(
         video_path=str(input_video),
         vision_jsonl_path=str(vision_jsonl_path),

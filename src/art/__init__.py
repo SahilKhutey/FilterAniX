@@ -18,7 +18,11 @@ from src.art.control_maps import (
 from src.art.style_controller import StyleController
 from src.art.preprocess import ControlBuilder
 from src.art.temporal import TemporalStabilizer
-from src.art.opencv_renderer import OpenCVArtRenderer, OpenCVIllustrationRenderer
+from src.art.opencv_renderer import (
+    FastPreviewRenderer,
+    OpenCVArtRenderer,
+    OpenCVIllustrationRenderer,
+)
 from src.art.diffusion_renderer import DiffusionRenderer
 from src.art.math_engine import MathematicalStyleEngine
 from src.art.mathematical import (
@@ -26,6 +30,8 @@ from src.art.mathematical import (
     MathematicalRenderer,
     MathematicalAnimeStyle,
     DEFAULT_ANIME_PALETTE,
+    validate_render,
+    RenderValidationError,
 )
 from src.art.style_engine import StyleEngine
 from src.art.video_renderer import VideoRenderer, VideoStyleRenderer
@@ -46,6 +52,7 @@ __all__ = [
     "StyleController",
     "ControlBuilder",
     "TemporalStabilizer",
+    "FastPreviewRenderer",
     "OpenCVArtRenderer",
     "OpenCVIllustrationRenderer",
     "DiffusionRenderer",
@@ -57,4 +64,6 @@ __all__ = [
     "StyleEngine",
     "VideoRenderer",
     "VideoStyleRenderer",
+    "validate_render",
+    "RenderValidationError",
 ]

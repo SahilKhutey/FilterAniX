@@ -61,8 +61,14 @@ def render_anime_mouth(
     return canvas_rgb
 
 
-class OpenCVArtRenderer:
-    """Fast deterministic artistic renderer for preview, fallback, and intermediate frames."""
+class FastPreviewRenderer:
+    """
+    ⚡ FAST PREVIEW RENDERER
+    Approximate visualization - Not final production rendering.
+    Lightweight fallback providing fast 30 FPS preview with zero GPU overhead.
+    For full deterministic continuous image fields with character semantic preservation,
+    use MathematicalAnimeEngine.
+    """
 
     def __init__(
         self,
@@ -82,6 +88,7 @@ class OpenCVArtRenderer:
     ) -> np.ndarray:
         result = frame.copy()
 
+        # Bilateral smoothing to preserve cartoon color regions
         for _ in range(self.bilateral_passes):
             result = cv2.bilateralFilter(
                 result,
@@ -90,35 +97,42 @@ class OpenCVArtRenderer:
                 sigmaSpace=50,
             )
 
-        if len(result.shape) == 3:
-            gray = cv2.cvtColor(result, cv2.COLOR_BGR2GRAY)
+        # 1. Correct RGB -> Grayscale conversion (Fix color-space bug)
+        if len(result.shape) == 3 and result.shape[2] == 3:
+            gray = cv2.cvtColor(result, cv2.COLOR_RGB2GRAY)
         else:
-            gray = result
+            gray = result.copy()
 
-        edges = cv2.adaptiveThreshold(
-            gray,
-            255,
-            cv2.ADAPTIVE_THRESH_MEAN_C,
-            cv2.THRESH_BINARY,
-            9,
-            2,
-        )
+        # 2. Warm anime luminance enhancement (avoid crushed blacks)
+        gray_f = gray.astype(np.float32) / 255.0
+        # Gentle anime S-curve tone mapping
+        toned_gray = np.clip(1.0 / (1.0 + np.exp(-4.5 * (gray_f - 0.45))), 0.0, 1.0)
+        toned_uint8 = (toned_gray * 255.0).astype(np.uint8)
 
-        if len(result.shape) == 3:
-            edges = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
+        # 3. Clean anime linework without speckled adaptive-threshold noise
+        # Compute smooth gradient magnitude
+        grad_x = cv2.Sobel(toned_uint8, cv2.CV_32F, 1, 0, ksize=3)
+        grad_y = cv2.Sobel(toned_uint8, cv2.CV_32F, 0, 1, ksize=3)
+        grad_mag = cv2.magnitude(grad_x, grad_y)
+        grad_norm = np.clip(grad_mag / 255.0 * 2.5, 0.0, 1.0)
+        grad_norm = cv2.GaussianBlur(grad_norm, (3, 3), 0.5)
 
-        output = cv2.bitwise_and(
-            result,
-            edges,
-        )
+        # Soft anime ink lines (warm dark purple-brown ink: [32, 27, 34])
+        ink_color = np.array([32.0, 27.0, 34.0], dtype=np.float32)
+        line_weight = np.clip(grad_norm * self.edge_strength, 0.0, 1.0)
 
-        blended = cv2.addWeighted(
-            result,
-            1.0 - self.edge_strength,
-            output,
-            self.edge_strength,
-            0,
-        )
+        # Blend smoothed color base with warm anime ink
+        result_f = result.astype(np.float32)
+        # Apply slight warm anime color grading
+        result_f[:, :, 0] = np.clip(result_f[:, :, 0] * 1.04 + 4.0, 0.0, 255.0)  # warm red/skin
+        result_f[:, :, 1] = np.clip(result_f[:, :, 1] * 1.01 + 2.0, 0.0, 255.0)  # green
+        result_f[:, :, 2] = np.clip(result_f[:, :, 2] * 0.98 - 1.0, 0.0, 255.0)  # reduce harsh blue
+
+        ink_broadcast = np.tile(ink_color.reshape((1, 1, 3)), (result.shape[0], result.shape[1], 1))
+        weight_broadcast = line_weight[:, :, np.newaxis]
+
+        blended_f = result_f * (1.0 - weight_broadcast) + ink_broadcast * weight_broadcast
+        blended = np.clip(blended_f, 0.0, 255.0).astype(np.uint8)
 
         # Apply character anime mouth rendering if vision face or lipsync present
         if vision_data and hasattr(vision_data, "faces") and vision_data.faces:
@@ -239,3 +253,7 @@ class OpenCVIllustrationRenderer:
             out_frame = render_anime_mouth(out_frame, face, viseme=viseme, mouth_opening=ratio, line_tint=self.style.line_tint)
 
         return out_frame
+
+
+# Backwards compatibility alias
+OpenCVArtRenderer = FastPreviewRenderer

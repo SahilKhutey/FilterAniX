@@ -1,0 +1,60 @@
+# FilterAniX Neural Assist Model Manifest
+# Hard constraint: Total bundle size <= 1024 MB (Budget) | Default recommended bundle <= 250 MB
+version: "1.0.0"
+policy:
+  max_total_disk_mb: 1024.0
+  recommended_bundle_mb: 250.0
+  live_target_mb: 100.0
+
+models:
+  u2netp:
+    name: "U²-Netp (Portable Salient Object Segmentation)"
+    task: "segmentation"
+    license: "apache-2.0"
+    format: "onnx"
+    size_mb: 4.36
+    params: "1.13M"
+    input_resolution: [320, 320]
+    input_channels: 3
+    output_channels: 1
+    frequency_interval: 5
+    description: "Lightweight salient foreground subject probability field P(subject | pixel)"
+
+  modnet:
+    name: "MODNet (Real-Time Portrait Matting)"
+    task: "portrait_matting"
+    license: "apache-2.0"
+    format: "onnx"
+    size_mb: 26.0
+    params: "6.49M"
+    input_resolution: [512, 512]
+    input_channels: 3
+    output_channels: 1
+    frequency_interval: 5
+    description: "Soft continuous alpha matte for creator portrait, hair, and clothing boundaries"
+
+  micron_flow:
+    name: "Micron-Flow (Lightweight Optical Flow)"
+    task: "optical_flow"
+    license: "apache-2.0"
+    format: "onnx"
+    size_mb: 2.10
+    params: "522K"
+    input_resolution: [256, 256]
+    input_channels: 6
+    output_channels: 2
+    frequency_interval: 1
+    description: "Dense 2D motion vector field (dx, dy) for MTH-10 temporal stabilization"
+
+  depth_anything_v2_small_int8:
+    name: "Depth Anything V2 Small (INT8 Quantized)"
+    task: "depth_estimation"
+    license: "apache-2.0"
+    format: "onnx"
+    size_mb: 27.3
+    params: "24.8M"
+    input_resolution: [518, 518]
+    input_channels: 3
+    output_channels: 1
+    frequency_interval: 8
+    description: "Relative depth field D(x, y) in [0.0, 1.0] for spatial simplification & cinematic lighting"

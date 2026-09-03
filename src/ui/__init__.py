@@ -1,6 +1,5 @@
-﻿"""Phase 1 UI Package."""
-from src.ui.video_widget import VideoWidget
-from src.ui.camera_window import LiveCameraWindow
-from src.ui.main_window import MainWindow
+from __future__ import annotations
 
-__all__ = ["VideoWidget", "LiveCameraWindow", "MainWindow"]
+from src.ui.app import create_app
+
+__all__ = ["create_app"]

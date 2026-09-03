@@ -36,11 +36,19 @@ def calculate_progress(
     )
 
 
+from src.core.events import EventBus, PipelineEvent, default_event_bus
+
+
 class PipelineManager:
     """Orchestrates Phases 1 through 6 in a resilient, resumable production pipeline."""
 
-    def __init__(self, project: Project):
+    def __init__(
+        self,
+        project: Project,
+        event_bus: Optional[EventBus] = None,
+    ):
         self.project = project
+        self.event_bus = event_bus or default_event_bus
 
     def run_stage(
         self,
@@ -51,12 +59,24 @@ class PipelineManager:
         completed_weight: float = 0.0,
         **kwargs,
     ):
+        job_id = getattr(control.job, "job_id", "") if control and control.job else ""
+
         if control is not None:
             control.check()
             control.update(
                 stage=name,
                 progress=completed_weight,
                 message=f"Starting stage: {name}...",
+            )
+
+        if self.event_bus is not None:
+            self.event_bus.emit(
+                PipelineEvent(
+                    job_id=job_id,
+                    stage=name,
+                    progress=completed_weight,
+                    message=f"Starting stage: {name}...",
+                )
             )
 
         if self.project.stage_complete(name):
@@ -66,6 +86,15 @@ class PipelineManager:
                     stage=name,
                     progress=completed_weight + STAGE_WEIGHTS.get(name, 0.0),
                     message=f"Stage {name} cached.",
+                )
+            if self.event_bus is not None:
+                self.event_bus.emit(
+                    PipelineEvent(
+                        job_id=job_id,
+                        stage=name,
+                        progress=completed_weight + STAGE_WEIGHTS.get(name, 0.0),
+                        message=f"Stage {name} cached.",
+                    )
                 )
             return self.project.load()["stages"][name]["output"]
 
@@ -87,12 +116,40 @@ class PipelineManager:
                     message=f"Completed stage: {name}",
                 )
 
+            if self.event_bus is not None:
+                self.event_bus.emit(
+                    PipelineEvent(
+                        job_id=job_id,
+                        stage=name,
+                        progress=completed_weight + STAGE_WEIGHTS.get(name, 0.0),
+                        message=f"Completed stage: {name}",
+                    )
+                )
+
             return result
         except JobCancelledError:
             self.project.update_stage(name, "cancelled", error="Cancelled by user.")
+            if self.event_bus is not None:
+                self.event_bus.emit(
+                    PipelineEvent(
+                        job_id=job_id,
+                        stage=name,
+                        progress=completed_weight,
+                        message="Cancelled by user.",
+                    )
+                )
             raise
         except Exception as exc:
             self.project.update_stage(name, "failed", error=str(exc))
+            if self.event_bus is not None:
+                self.event_bus.emit(
+                    PipelineEvent(
+                        job_id=job_id,
+                        stage=name,
+                        progress=completed_weight,
+                        message=f"Stage {name} failed: {exc}",
+                    )
+                )
             traceback.print_exc()
             try:
                 from src.core.errors import write_error_manifest
@@ -110,6 +167,7 @@ class PipelineManager:
         input_video: str | Path,
         style: str = "anime_creator",
         job: Optional[object] = None,
+        style_params: Optional[dict] = None,
     ) -> Dict[str, Any]:
         project_root = self.project.root
         source = Path(input_video).resolve()
@@ -190,6 +248,7 @@ class PipelineManager:
                 lipsync_output,
                 control=control,
                 completed_weight=completed_weight,
+                style_params=style_params,
             )
             completed_weight += STAGE_WEIGHTS["artistic"]
 
@@ -222,6 +281,7 @@ class PipelineManager:
                 stage="complete",
                 progress=1.0,
                 message="Video production complete!",
+                current_output=str(final_output),
             )
 
             return {
@@ -265,14 +325,24 @@ class PipelineManager:
         root: Path,
         lipsync: Optional[Path] = None,
         control: Optional[JobControl] = None,
+        style_params: Optional[Any] = None,
     ) -> Path:
         from src.art.mathematical import MathematicalAnimeStyle, MathematicalRenderer
 
         output = root / "artistic" / "animated.mp4"
         output.parent.mkdir(parents=True, exist_ok=True)
 
-        math_style = MathematicalAnimeStyle.creator_anime()
-        renderer = MathematicalRenderer(style=math_style)
+        if isinstance(style_params, MathematicalAnimeStyle):
+            math_style = style_params
+        elif isinstance(style_params, dict) and style_params:
+            try:
+                math_style = MathematicalAnimeStyle(**style_params).validated()
+            except Exception:
+                math_style = MathematicalAnimeStyle.creator_anime()
+        else:
+            math_style = MathematicalAnimeStyle.creator_anime()
+
+        renderer = MathematicalRenderer(style=math_style, event_bus=self.event_bus)
         renderer.render_video(
             input_path=str(source),
             vision_jsonl=str(vision),

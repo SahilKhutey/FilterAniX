@@ -626,13 +626,19 @@ class TemporalOpticalFlowField:
         current_luminance: np.ndarray,
         current_source_gray: Optional[np.ndarray] = None,
         scene_cut: bool = False,
+        precomputed_flow: Optional[np.ndarray] = None,
     ) -> Tuple[np.ndarray, float]:
         if scene_cut:
             self.reset()
 
         h, w = current_art.shape[:2]
 
-        if self._prev_art is None or self._prev_luminance is None:
+        if (
+            self._prev_art is None
+            or self._prev_luminance is None
+            or self._prev_luminance.shape != current_luminance.shape
+            or self._prev_art.shape != current_art.shape
+        ):
             self._prev_art = current_art.copy()
             self._prev_luminance = current_luminance.copy()
             if current_source_gray is not None:
@@ -651,33 +657,42 @@ class TemporalOpticalFlowField:
             return current_art.copy(), motion
 
         warped_prev = self._prev_art
-        if getattr(self.style, "use_optical_flow", True) and current_source_gray is not None and self._prev_source_gray is not None:
-            try:
-                flow = cv2.calcOpticalFlowFarneback(
-                    self._prev_source_gray,
-                    current_source_gray,
-                    None,
-                    pyr_scale=0.5,
-                    levels=2,
-                    winsize=13,
-                    iterations=2,
-                    poly_n=5,
-                    poly_sigma=1.1,
-                    flags=0,
-                )
+        if getattr(self.style, "use_optical_flow", True):
+            flow = None
+            if precomputed_flow is not None and precomputed_flow.shape[:2] == (h, w):
+                flow = precomputed_flow
+            elif current_source_gray is not None and self._prev_source_gray is not None:
+                try:
+                    flow = cv2.calcOpticalFlowFarneback(
+                        self._prev_source_gray,
+                        current_source_gray,
+                        None,
+                        pyr_scale=0.5,
+                        levels=2,
+                        winsize=13,
+                        iterations=2,
+                        poly_n=5,
+                        poly_sigma=1.1,
+                        flags=0,
+                    )
+                except Exception:
+                    flow = None
 
-                grid_x, grid_y = np.meshgrid(np.arange(w), np.arange(h))
-                map_x = (grid_x - flow[:, :, 0]).astype(np.float32)
-                map_y = (grid_y - flow[:, :, 1]).astype(np.float32)
+            if flow is not None:
+                try:
+                    grid_x, grid_y = np.meshgrid(np.arange(w), np.arange(h))
+                    map_x = (grid_x - flow[:, :, 0]).astype(np.float32)
+                    map_y = (grid_y - flow[:, :, 1]).astype(np.float32)
 
-                warped_prev = cv2.remap(
-                    self._prev_art,
-                    map_x,
-                    map_y,
-                    interpolation=cv2.INTER_LINEAR,
-                    borderMode=cv2.BORDER_REFLECT,
-                )
-            except Exception:
+                    warped_prev = cv2.remap(
+                        self._prev_art,
+                        map_x,
+                        map_y,
+                        interpolation=cv2.INTER_LINEAR,
+                        borderMode=cv2.BORDER_REFLECT,
+                    )
+                except Exception:
+                    warped_prev = self._prev_art
                 warped_prev = self._prev_art
 
         stabilized = (1.0 - lambda_t) * current_art + lambda_t * warped_prev

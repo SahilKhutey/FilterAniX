@@ -32,6 +32,7 @@ class JobControl:
         self,
         *,
         stage: str | None = None,
+        substage: str | None = None,
         progress: float | None = None,
         current_frame: int | None = None,
         total_frames: int | None = None,
@@ -39,6 +40,7 @@ class JobControl:
         eta_seconds: float | None = None,
         elapsed_seconds: float | None = None,
         message: str | None = None,
+        current_output: str | None = None,
     ):
         if self.job is None or not hasattr(self.job, "update"):
             return
@@ -47,6 +49,9 @@ class JobControl:
 
         if stage is not None:
             values["stage"] = stage
+
+        if substage is not None:
+            values["substage"] = substage
 
         if progress is not None:
             values["progress"] = max(
@@ -77,5 +82,8 @@ class JobControl:
 
         if message is not None:
             values["message"] = str(message)
+
+        if current_output is not None:
+            values["current_output"] = str(current_output)
 
         self.job.update(**values)

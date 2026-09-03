@@ -25,6 +25,7 @@ from .face_field import (
     FaceFieldResult,
     MathematicalFaceField,
     compute_face_mask,
+    compute_semantic_face_masks,
     apply_face_modulation,
 )
 from .texture_field import compute_foreground_mask, apply_background_simplification
@@ -46,6 +47,8 @@ from .renderer import (
 from .compositor import MathematicalAnimeCompositor
 from .diagnostics import MathematicalEngineDiagnostics
 from .engine import MathematicalAnimeEngine
+from .quality import validate_render, RenderValidationError
+from .preservation_metrics import PreservationMetricsEngine, FrameQualityAudit
 
 __all__ = [
     "DEFAULT_ANIME_PALETTE",
@@ -76,6 +79,7 @@ __all__ = [
     "adapt_vision_frame",
     "compute_surface_normals",
     "compute_face_mask",
+    "compute_semantic_face_masks",
     "apply_face_modulation",
     "compute_foreground_mask",
     "apply_background_simplification",
@@ -91,4 +95,8 @@ __all__ = [
     "MathematicalAnimeEngine",
     "MathematicalRenderer",
     "MathematicalRenderResult",
+    "validate_render",
+    "RenderValidationError",
+    "PreservationMetricsEngine",
+    "FrameQualityAudit",
 ]

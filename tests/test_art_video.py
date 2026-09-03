@@ -86,3 +86,7 @@ def test_complete_art_video_pipeline(tmp_path):
 
     capture.release()
     assert count == 12
+
+    with open(result["metrics"], "r", encoding="utf-8") as f:
+        metrics_data = json.load(f)
+        assert metrics_data["mathematical_frames"] == 12

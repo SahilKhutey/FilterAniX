@@ -71,8 +71,10 @@ class MathematicalRenderer:
     def __init__(
         self,
         style: Optional[MathematicalAnimeStyle] = None,
+        event_bus: Optional[Any] = None,
     ) -> None:
         self.style = style or MathematicalAnimeStyle.creator_anime()
+        self.event_bus = event_bus
 
         # Initialize all 9 mathematical stage engines
         self.color_field = MathematicalColorField(self.style)
@@ -341,11 +343,42 @@ class MathematicalRenderer:
                 self._previous_input_gray = frame_gray.copy()
                 processed_count += 1
 
+                elapsed_so_far = time.perf_counter() - start_time
+                curr_fps = processed_count / elapsed_so_far if elapsed_so_far > 0 else 0.0
+                curr_eta = ((total_frames - processed_count) / curr_fps) if (curr_fps > 0 and total_frames > 0) else 0.0
+
                 if control is not None and total_frames > 0:
                     control.update(
                         progress=processed_count / total_frames,
+                        current_frame=processed_count,
+                        total_frames=total_frames,
+                        fps=round(curr_fps, 1),
+                        eta_seconds=round(curr_eta, 1),
+                        elapsed_seconds=round(elapsed_so_far, 1),
+                        substage="MTH-09 Lighting Field",
                         message=f"Rendering frame {processed_count}/{total_frames}",
                     )
+
+                if self.event_bus is not None and total_frames > 0:
+                    try:
+                        from src.core.events import PipelineEvent
+                        job_obj = getattr(control, "job", None) if control else None
+                        j_id = getattr(job_obj, "job_id", "") if job_obj else ""
+                        self.event_bus.emit(
+                            PipelineEvent(
+                                job_id=j_id,
+                                stage="artistic",
+                                substage="MTH-09 Lighting Field",
+                                progress=processed_count / total_frames,
+                                frame=processed_count,
+                                total_frames=total_frames,
+                                fps=round(curr_fps, 1),
+                                eta_seconds=round(curr_eta, 1),
+                                message=f"Rendering frame {processed_count}/{total_frames} (MTH-02..10)",
+                            )
+                        )
+                    except Exception:
+                        pass
 
         finally:
             capture.release()
