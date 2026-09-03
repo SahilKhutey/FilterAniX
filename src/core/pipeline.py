@@ -94,6 +94,15 @@ class PipelineManager:
         except Exception as exc:
             self.project.update_stage(name, "failed", error=str(exc))
             traceback.print_exc()
+            try:
+                from src.core.errors import write_error_manifest
+                write_error_manifest(
+                    output_path=self.project.root / "output" / "error.json",
+                    stage=name,
+                    error=exc,
+                )
+            except Exception:
+                pass
             raise
 
     def run(
@@ -257,14 +266,13 @@ class PipelineManager:
         lipsync: Optional[Path] = None,
         control: Optional[JobControl] = None,
     ) -> Path:
-        from src.art.keyframe_video_renderer import KeyframeVideoRenderer
-        from src.art.types import StyleConfig
+        from src.art.mathematical import MathematicalAnimeStyle, MathematicalRenderer
 
         output = root / "artistic" / "animated.mp4"
         output.parent.mkdir(parents=True, exist_ok=True)
 
-        config = StyleConfig(name=str(style))
-        renderer = KeyframeVideoRenderer(config=config)
+        math_style = MathematicalAnimeStyle.creator_anime()
+        renderer = MathematicalRenderer(style=math_style)
         renderer.render_video(
             input_path=str(source),
             vision_jsonl=str(vision),
