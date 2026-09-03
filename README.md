@@ -2,17 +2,18 @@
 
 [![License: Commercial](https://img.shields.io/badge/License-Commercial%20Friendly-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-brightgreen.svg)](https://www.python.org/)
-[![Tests: 90+ Passed](https://img.shields.io/badge/tests-90%2B%20passed-success.svg)](tests/)
+[![Tests: 149+ Passed](https://img.shields.io/badge/tests-149%2B%20passed-success.svg)](tests/)
 [![Gradio Studio UI](https://img.shields.io/badge/UI-Gradio%206.26-orange.svg)](app.py)
 [![FFmpeg Broadcast](https://img.shields.io/badge/Audio-EBU%20R128%20(-14%20LUFS)-purple.svg)](src/media/)
 
-> **FilterAniX (Animated Creator)** is a state-of-the-art vision and generative styling engine that converts real-world creator videos into temporally stable, character-consistent 2D anime/illustrated YouTube master productions.
+> **FilterAniX (Animated Creator)** is a state-of-the-art vision and mathematical styling engine that converts real-world creator videos into temporally stable, character-consistent 2D anime/illustrated YouTube master productions.
 
 ---
 
 ## 🌟 Key Capabilities
 
 * **🎬 Complete Real-to-Anime Transformation**: Preserves real camera composition, facial expressions, hand gestures, posture, microphone, laptop, and background props while transforming the scene into an anime universe.
+* **📐 Mathematical Style Engine v1.0 (MTH-01..10)**: 100% deterministic continuous image-field engine performing per-pixel transformations across color, tone, palette, edge line-art, shadows, geometry, facial features, cinematic lighting, and temporal flow warping without diffusion or AI keyframes.
 * **🧠 Full Vision & Scene Understanding**: MediaPipe-powered 468 Face Mesh landmarks, 33 3D skeletal pose keypoints, 21-joint hand tracking, person segmentation, and Farneback optical flow.
 * **🎨 Procedural & Generative Cel-Shading**: Extended Difference of Gaussians (XDoG) ink lines, anisotropic Kuwahara smoothing, CIELAB stepped cel-shading, and Reinhard palette color transfer.
 * **🔒 Character Identity & Temporal Consistency**: Canonical reference profiling, MSE + 3D histogram shot-cut detection, motion-aware keyframing, and automated identity drift auditing.
@@ -46,8 +47,9 @@
                    └─────────────────┬───────────────────┘
                                      ▼
             ┌─────────────────────────────────────────────────┐
-            │  PHASE 3: Artistic Style & Cel-Shading Engine   │
-            │  (Viseme Mouth Render, Temporal Warp, Inking)   │
+            │  PHASE 3: Mathematical Style Engine (MTH-01..10)│
+            │  (Color, Tone, Palette, Edge, Geometry, Face,   │
+            │   Shadow/Highlight, Lighting & Temporal Warp)   │
             └────────────────────────┬────────────────────────┘
                                      ▼
             ┌─────────────────────────────────────────────────┐
@@ -62,6 +64,25 @@
                                      ▼
                            🎬 YOUTUBE MASTER VIDEO
 ```
+
+---
+
+## 📐 Mathematical Anime Style Engine (MTH-01 → MTH-10)
+
+The core Phase-3 rendering engine performs deterministic, per-pixel transformation across 9 mathematical stages:
+
+| Stage | Module | Description |
+|---|---|---|
+| **MTH-01** | `config.py` | Validated, immutable style parameters (`MathematicalAnimeStyle`) and color palette |
+| **MTH-02** | `color_field.py` | $I \to C$: CIELAB color quantization, bilateral tone mapping, saturation control |
+| **MTH-03** | `tone_field.py` | $C \to T$: Multi-scale Gaussian luminance, S-curve contrast, smooth quantization |
+| **MTH-04** | `palette_field.py` | $T \to P$: Softmax distance projection onto warm anime palette anchors |
+| **MTH-05** | `edge_field.py` | $P \to E$: Multi-scale Sobel gradients, Laplacian structure, dark anime ink lines |
+| **MTH-06** | `shadow_highlight_field.py` | $E \to S$: Sigmoidal cel-shadows and warm specular highlight modulation |
+| **MTH-07** | `geometry_field.py` | Character ($G_C$) vs. background ($B_G$) spatial segmentation & bounding boxes |
+| **MTH-08** | `face_field.py` | MediaPipe 468 landmark Gaussian fields protecting eyes, nose, and mouth |
+| **MTH-09** | `lighting_field.py` | Cinematic warm key light and cool shadow tinting |
+| **MTH-10** | `temporal_field.py` | Optical-flow stabilized inter-frame temporal warping ($A_t = (1 - \lambda_t) F(I_t) + \lambda_t \mathcal{W}(A_{t-1}, \Phi_t)$) |
 
 ---
 
@@ -82,9 +103,8 @@ Open **http://127.0.0.1:7860** in your web browser.
 
 ### 3. Run Pipeline via Command Line
 ```bash
-python run_pipeline.py --input "samples/test_phase1_input.mp4" --style anime_creator --project "projects/my_video"
+python run_pipeline.py --input "samples/A_pose_explaingn_Something_.mp4" --project "projects/my_video"
 ```
-*(Both `--project` and `--project-dir` flags are supported).*
 
 ### 4. Export YouTube 1080p Master
 ```bash
@@ -95,9 +115,13 @@ python export_youtube.py --input "projects/my_video/output/youtube_master.mp4" -
 
 ## 🧪 Testing
 
-The repository includes a comprehensive 65+ test automated suite covering all 6 phases and end-to-end integration:
+The repository includes a comprehensive 149+ automated test suite covering all mathematical stages, core contracts, and full system integration:
 
 ```bash
+# Run all mathematical and system integration tests
+python -m pytest tests/test_mth*.py tests/test_system_integration.py tests/test_mathematical_fields.py -v
+
+# Run the complete test suite
 python -m pytest tests/ -v
 ```
 
@@ -117,28 +141,21 @@ FilterAniX/
 ├── LICENSE                     # Commercial & Open Software License
 ├── README.md                   # Project Documentation
 │
+├── configs/
+│   └── mathematical_anime.yaml # Canonical MTH-01..10 YAML Configuration
 ├── docs/                       # Technical Documentation
-│   ├── QUICKSTART.md           # 2-Minute Onboarding Guide
-│   ├── ARCHITECTURE.md         # Mathematical & System Specification
-│   ├── PIPELINE_STAGES.md      # Detailed Phase Breakdown
-│   ├── STYLE_GUIDE.md          # Customizing Style Presets
-│   └── API_REFERENCE.md        # Python API Guide
-│
+│   ├── ARCHITECTURE.md
+│   ├── PIPELINE_STAGES.md
+│   ├── QUICKSTART.md
+│   └── STYLE_GUIDE.md
 ├── src/
-│   ├── core/                   # Project Manager, Manifest, Exporter, Hardware
-│   ├── io/                     # Phase 1: Video I/O & Metadata
-│   ├── vision/                 # Phase 2: MediaPipe Face, Pose, Hands, Flow
-│   ├── art/                    # Phase 3: Cel-Shading, Inking, Temporal Warp
-│   ├── consistency/            # Phase 4: Identity Profiling & Temporal Plan
-│   ├── lipsync/                # Phase 5: Viseme Extraction & Smoothing
-│   └── media/                  # Phase 5: EBU R128 Normalizer & Muxer
-│
-└── tests/                      # Automated Pytest Suite
+│   ├── core/                   # FramePacket, error hierarchy, logging, pipeline
+│   ├── vision/                 # MediaPipe Face, Pose, Hands, Scene cuts
+│   ├── consistency/            # Character reference signatures & temporal planning
+│   ├── lipsync/                # 4-state viseme classification & timeline smoothing
+│   ├── art/mathematical/       # MTH-01..10 Mathematical Style Engine & Renderer
+│   ├── media/                  # Audio multiplexing, EBU R128 loudness, validation
+│   └── io/                     # Video decode, inspection, and writer wrappers
+├── tests/                      # Automated test suite (149+ unit & integration tests)
+└── tools/                      # Diagnostic inspection tools (inspect_mth01..10)
 ```
-
----
-
-## 📄 License & Commercial Rights
-
-Copyright (c) 2026 **Sahil Khutey**. All rights reserved.
-Licensed under the [FilterAniX Commercial Software License](LICENSE). Creators retain 100% intellectual property and commercial monetization rights over all generated video outputs.

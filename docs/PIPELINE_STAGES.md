@@ -1,10 +1,11 @@
-﻿# FilterAniX Pipeline Stages & Modules
+# FilterAniX Pipeline Stages & Modules
 
 | Stage | Package | Core Responsibilities | Output Artifacts |
 |---|---|---|---|
-| **Phase 1** | `src.io`, `src.processing` | Frame decoding, zero-config FFmpeg resolution, metadata inspection, audio stream preservation. | `phase1/metadata.json` |
-| **Phase 2** | `src.vision` | 468 Face Mesh landmarks, 33 3D Pose joints, 21 Hand keypoints, Person segmentation mask, Optical flow, Props detection. | `phase2/vision.jsonl`, `phase2/annotated.mp4` |
-| **Phase 3** | `src.art` | XDoG ink extraction, Kuwahara smoothing, CIELAB stepped cel-shading, warm lighting, reference palette transfer, flow warping. | `phase3/artistic_video.mp4` |
-| **Phase 4** | `src.consistency` | Canonical character reference signatures, MSE + 3D histogram scene cut detection, motion keyframe injection, quality auditing. | `phase4/temporal_plan.jsonl`, `phase4/consistency_report.json` |
-| **Phase 5** | `src.lipsync`, `src.media` | 4-state viseme classification, temporal sliding-window smoothing, EBU R128 audio normalization, 0.000s A/V synchronization. | `phase5/lipsync.jsonl`, `phase5/youtube_master.mp4` |
-| **Phase 6** | `src.core` | Gradio web application, Manifest state machine, Checkpointing, Multi-resolution YouTube export (720p–4K). | `export/youtube_1080p.mp4`, `manifest.json` |
+| **Phase 1** | `src.io`, `src.processing` | Frame decoding, zero-config FFmpeg resolution, metadata inspection, audio stream preservation. | `source/video.mp4`, `metadata.json` |
+| **Phase 2** | `src.vision` | 468 Face Mesh landmarks, 33 3D Pose joints, 21 Hand keypoints, Person segmentation mask, Optical flow, Scene cuts. | `vision/vision.jsonl` |
+| **Phase 4** | `src.consistency` | Canonical character reference signatures, scene cut detection, motion keyframe injection, temporal planning. | `consistency/temporal_plan.jsonl` |
+| **Phase 5A** | `src.lipsync` | 4-state viseme classification, temporal sliding-window smoothing for mouth synchronization. | `lipsync/lipsync.jsonl` |
+| **Phase 3** | `src.art.mathematical` | Deterministic 9-layer Mathematical Style Engine (MTH-02 Color, MTH-03 Tone, MTH-04 Palette, MTH-05 Edge, MTH-06 Shadow/Highlight, MTH-07 Geometry, MTH-08 Face, MTH-09 Lighting, MTH-10 Temporal). | `artistic/animated.mp4` |
+| **Phase 5B** | `src.media` | Audio multiplexing, EBU R128 loudness normalization (-14.0 LUFS), 0.000s A/V synchronization. | `output/youtube_master.mp4` |
+| **Phase 6** | `src.core.export` | Multi-resolution YouTube export (720p, 1080p, 1440p, 4K UHD), broadcast validation. | `export/youtube_1080p.mp4`, `validation.json` |

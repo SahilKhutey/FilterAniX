@@ -1,4 +1,4 @@
-﻿# Byte-compiled / optimized / DLL files
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
@@ -51,6 +51,12 @@ projects/
 analysis_output/
 image_output/
 *.log
+mth*_output*.png
+mth*_fields/
+*mth08_fields/
+*mth09_fields/
+mth*_output.png
+mth*.png
 
 # Keep sample placeholders but ignore generated heavy videos
 samples/*.mp4
