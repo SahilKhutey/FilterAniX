@@ -93,43 +93,58 @@ class DiffusionRenderer:
         control_map: ControlMap,
         vision_data: Optional[FrameVisionData] = None,
         reference_rgb: Optional[np.ndarray] = None,
+        reference_strength: Optional[float] = None,
+        denoise_strength: Optional[float] = None,
     ) -> np.ndarray:
         """Executes diffusion inference with structural & identity conditioning or falls back to procedural illustration."""
         if self.pipeline is not None:
             try:
                 from PIL import Image
 
+                effective_reference_strength = (
+                    getattr(self.config, "identity_conditioning_scale", 0.70)
+                    if reference_strength is None
+                    else float(reference_strength)
+                )
+
+                effective_denoise_strength = (
+                    getattr(self.config, "denoise_strength", 0.35)
+                    if denoise_strength is None
+                    else float(denoise_strength)
+                )
+
                 init_image = Image.fromarray(rgb)
-                prompt = self.config.style.prompt
-                negative_prompt = self.config.style.negative_prompt
+                prompt = self.config.style.prompt if hasattr(self.config, "style") and hasattr(self.config.style, "prompt") else self.config.positive_prompt
+                negative_prompt = self.config.style.negative_prompt if hasattr(self.config, "style") and hasattr(self.config.style, "negative_prompt") else self.config.negative_prompt
 
                 kwargs = {
                     "prompt": prompt,
                     "negative_prompt": negative_prompt,
                     "image": init_image,
-                    "strength": 0.55,
-                    "guidance_scale": 7.5,
+                    "strength": effective_denoise_strength,
+                    "guidance_scale": getattr(self.config, "guidance_scale", 6.5),
+                    "num_inference_steps": getattr(self.config, "inference_steps", 20),
                 }
 
-                # 1. Structural Conditioning (ControlNet)
-                use_controlnet = self.has_controlnet or (self.config.controlnet_model_id is not None)
-                if use_controlnet:
-                    control_img_arr = None
+                # 1. Structural Conditioning (ControlNet) - only if actually using ControlNet pipeline
+                use_controlnet = self.has_controlnet and getattr(self.config, "use_controlnet", True)
+                control_img_arr = None
+                if control_map is not None:
                     if control_map.combined_control is not None:
                         control_img_arr = control_map.combined_control
                     elif control_map.edge_map is not None:
                         control_img_arr = control_map.edge_map
 
-                    if control_img_arr is not None:
-                        kwargs["control_image"] = Image.fromarray(control_img_arr)
-                        kwargs["controlnet_conditioning_scale"] = self.config.controlnet_conditioning_scale
+                if use_controlnet and control_img_arr is not None:
+                    kwargs["control_image"] = Image.fromarray(control_img_arr)
+                    kwargs["controlnet_conditioning_scale"] = getattr(self.config, "controlnet_conditioning_scale", 0.8)
 
                 # 2. Identity Reference Conditioning (IP-Adapter)
-                use_identity = self.has_ip_adapter or (self.config.identity_adapter_model_id is not None)
+                use_identity = self.has_ip_adapter or (getattr(self.config, "identity_adapter_model_id", None) is not None)
                 ref_pil = None
                 if reference_rgb is not None:
                     ref_pil = Image.fromarray(reference_rgb)
-                elif self.config.reference_image_path:
+                elif getattr(self.config, "reference_image_path", None):
                     try:
                         ref_pil = Image.open(self.config.reference_image_path).convert("RGB")
                     except Exception:
@@ -138,7 +153,7 @@ class DiffusionRenderer:
                 if use_identity and ref_pil is not None:
                     kwargs["ip_adapter_image"] = ref_pil
                     if hasattr(self.pipeline, "set_ip_adapter_scale"):
-                        self.pipeline.set_ip_adapter_scale(self.config.identity_conditioning_scale)
+                        self.pipeline.set_ip_adapter_scale(effective_reference_strength)
 
                 result = self.pipeline(**kwargs).images[0]
                 return np.array(result)

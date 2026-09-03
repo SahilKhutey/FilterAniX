@@ -28,10 +28,12 @@ class MediaPipeVision:
         hand_detection_confidence: float = 0.5,
         hand_tracking_confidence: float = 0.5,
         enable_segmentation: bool = True,
+        hand_interval: int = 1,
     ):
         self.mp_face = mp.solutions.face_mesh
         self.mp_pose = mp.solutions.pose
         self.mp_hands = mp.solutions.hands
+        self.hand_interval = max(1, hand_interval)
 
         self.face = self.mp_face.FaceMesh(
             static_image_mode=False,
@@ -56,6 +58,8 @@ class MediaPipeVision:
             min_tracking_confidence=hand_tracking_confidence,
         )
 
+        self._cached_hands: List[Dict[str, Any]] = []
+
     @staticmethod
     def _landmark_list(landmarks) -> List[Dict[str, float]]:
         return [
@@ -76,12 +80,11 @@ class MediaPipeVision:
         y0, y1 = max(0.0, min(ys)), min(1.0, max(ys))
         return BoundingBox(x0, y0, x1 - x0, y1 - y0)
 
-    def process(self, frame_bgr: np.ndarray) -> Dict[str, Any]:
+    def process(self, frame_bgr: np.ndarray, frame_index: int = 0) -> Dict[str, Any]:
         rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
 
         face_result = self.face.process(rgb)
         pose_result = self.pose.process(rgb)
-        hand_result = self.hands.process(rgb)
 
         faces = []
         if face_result.multi_face_landmarks:
@@ -101,23 +104,28 @@ class MediaPipeVision:
                 "landmark_count": len(points),
             }
 
-        hands = []
-        if hand_result.multi_hand_landmarks:
-            handedness = hand_result.multi_handedness or []
-            for idx, hand_landmarks in enumerate(hand_result.multi_hand_landmarks):
-                label = "Unknown"
-                score = 0.0
-                if idx < len(handedness):
-                    classification = handedness[idx].classification[0]
-                    label = classification.label
-                    score = float(classification.score)
+        if self.hand_interval <= 1 or frame_index % self.hand_interval == 0:
+            hand_result = self.hands.process(rgb)
+            hands = []
+            if hand_result.multi_hand_landmarks:
+                handedness = hand_result.multi_handedness or []
+                for idx, hand_landmarks in enumerate(hand_result.multi_hand_landmarks):
+                    label = "Unknown"
+                    score = 0.0
+                    if idx < len(handedness):
+                        classification = handedness[idx].classification[0]
+                        label = classification.label
+                        score = float(classification.score)
 
-                hands.append({
-                    "label": label,
-                    "score": score,
-                    "landmarks": self._landmark_list(hand_landmarks.landmark),
-                    "landmark_count": len(hand_landmarks.landmark),
-                })
+                    hands.append({
+                        "label": label,
+                        "score": score,
+                        "landmarks": self._landmark_list(hand_landmarks.landmark),
+                        "landmark_count": len(hand_landmarks.landmark),
+                    })
+            self._cached_hands = hands
+        else:
+            hands = self._cached_hands
 
         person_mask = None
         if pose_result.segmentation_mask is not None:

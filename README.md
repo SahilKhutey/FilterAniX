@@ -1,8 +1,8 @@
-﻿# FilterAniX — Animated Creator Engine
+# FilterAniX — Animated Creator Engine
 
 [![License: Commercial](https://img.shields.io/badge/License-Commercial%20Friendly-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-brightgreen.svg)](https://www.python.org/)
-[![Tests: 21 Passed](https://img.shields.io/badge/tests-21%20passed-success.svg)](tests/)
+[![Tests: 90+ Passed](https://img.shields.io/badge/tests-90%2B%20passed-success.svg)](tests/)
 [![Gradio Studio UI](https://img.shields.io/badge/UI-Gradio%206.26-orange.svg)](app.py)
 [![FFmpeg Broadcast](https://img.shields.io/badge/Audio-EBU%20R128%20(-14%20LUFS)-purple.svg)](src/media/)
 
@@ -16,7 +16,7 @@
 * **🧠 Full Vision & Scene Understanding**: MediaPipe-powered 468 Face Mesh landmarks, 33 3D skeletal pose keypoints, 21-joint hand tracking, person segmentation, and Farneback optical flow.
 * **🎨 Procedural & Generative Cel-Shading**: Extended Difference of Gaussians (XDoG) ink lines, anisotropic Kuwahara smoothing, CIELAB stepped cel-shading, and Reinhard palette color transfer.
 * **🔒 Character Identity & Temporal Consistency**: Canonical reference profiling, MSE + 3D histogram shot-cut detection, motion-aware keyframing, and automated identity drift auditing.
-* **🎙️ Voice Preservation & Lip-Sync**: Retains original microphone voice with EBU R128 (-14.0 LUFS) broadcast loudness normalization and 4-state smoothed viseme tracking.
+* **🎙️ Voice Preservation & Lip-Sync**: Retains original microphone voice with EBU R128 (-14.0 LUFS) broadcast loudness normalization and 4-state smoothed viseme tracking driving character mouth animation.
 * **⚡ Interactive Gradio Studio & CLI**: Features a modern web UI (`app.py`), live webcam streaming mode, and headless CLI orchestrator with stage checkpointing.
 * **📤 YouTube Multi-Resolution Export**: Broadcast H.264/AAC MP4 encoding at 720p, 1080p, 1440p, and 4K UHD with `faststart` container flags.
 
@@ -26,38 +26,41 @@
 
 ```
                             REAL CREATOR VIDEO
-                                    │
-                                    ▼
-           ┌─────────────────────────────────────────────────┐
-           │  PHASE 1: Video Input & Metadata Infrastructure │
-           └────────────────────────┬────────────────────────┘
-                                    ▼
-           ┌─────────────────────────────────────────────────┐
-           │  PHASE 2: Vision & Scene Understanding Engine   │
-           │  (Face Mesh, 3D Pose, Hands, Mask, Flow, Props) │
-           └────────────────────────┬────────────────────────┘
-                                    ▼
-           ┌─────────────────────────────────────────────────┐
-           │  PHASE 3: Artistic Style & Cel-Shading Engine   │
-           │  (Procedural Kuwahara, CIELAB Cel, Inking, Flow)│
-           └────────────────────────┬────────────────────────┘
-                                    ▼
-           ┌─────────────────────────────────────────────────┐
-           │  PHASE 4: Character Identity & Temporal Engine  │
-           │  (Reference Signatures, Scene Cuts, Keyframes)  │
-           └────────────────────────┬────────────────────────┘
-                                    ▼
-           ┌─────────────────────────────────────────────────┐
-           │  PHASE 5: Lip-Sync & Multi-Track Composition    │
-           │  (4-State Visemes, EBU R128 Loudnorm, Voice Mux)│
-           └────────────────────────┬────────────────────────┘
-                                    ▼
-           ┌─────────────────────────────────────────────────┐
-           │  PHASE 6: Production Studio & YouTube Exporter  │
-           │  (Manifest Engine, Gradio Web UI, Multi-Res MP4)│
-           └────────────────────────┬────────────────────────┘
-                                    ▼
-                          🎬 YOUTUBE MASTER VIDEO
+                                     │
+                                     ▼
+            ┌─────────────────────────────────────────────────┐
+            │  PHASE 1: Video Input & Metadata Infrastructure │
+            └────────────────────────┬────────────────────────┘
+                                     ▼
+            ┌─────────────────────────────────────────────────┐
+            │  PHASE 2: Vision & Scene Understanding Engine   │
+            │  (Face Mesh, 3D Pose, Hands, Mask, Flow, Props) │
+            └────────────────────────┬────────────────────────┘
+                                     │
+                   ┌─────────────────┴─────────────────┐
+                   ▼                                   ▼
+ ┌───────────────────────────────────┐ ┌───────────────────────────────────┐
+ │ PHASE 4: Consistency & Plan       │ │ PHASE 5A: Lip-Sync Timeline       │
+ │ (Keyframe Decisions, Drift Audit) │ │ (4-State Smoothed Visemes)        │
+ └─────────────────┬─────────────────┘ └─────────────────┬─────────────────┘
+                   └─────────────────┬───────────────────┘
+                                     ▼
+            ┌─────────────────────────────────────────────────┐
+            │  PHASE 3: Artistic Style & Cel-Shading Engine   │
+            │  (Viseme Mouth Render, Temporal Warp, Inking)   │
+            └────────────────────────┬────────────────────────┘
+                                     ▼
+            ┌─────────────────────────────────────────────────┐
+            │  PHASE 5B: Multi-Track Composition & Audio Mux  │
+            │  (Voice Preservation, EBU R128 Loudnorm Muxing) │
+            └────────────────────────┬────────────────────────┘
+                                     ▼
+            ┌─────────────────────────────────────────────────┐
+            │  PHASE 6: Production Studio & YouTube Exporter  │
+            │  (Manifest Engine, Gradio Web UI, Multi-Res MP4)│
+            └────────────────────────┬────────────────────────┘
+                                     ▼
+                           🎬 YOUTUBE MASTER VIDEO
 ```
 
 ---
@@ -79,37 +82,23 @@ Open **http://127.0.0.1:7860** in your web browser.
 
 ### 3. Run Pipeline via Command Line
 ```bash
-python run_pipeline.py --input "samples/test_phase1_input.mp4" --style anime_creator --project-dir "projects/my_video"
+python run_pipeline.py --input "samples/test_phase1_input.mp4" --style anime_creator --project "projects/my_video"
 ```
+*(Both `--project` and `--project-dir` flags are supported).*
 
 ### 4. Export YouTube 1080p Master
 ```bash
-python export_youtube.py --input "projects/my_video/phase5/youtube_master.mp4" --output "projects/my_video/export/youtube_1080p.mp4" --preset 1080p
+python export_youtube.py --input "projects/my_video/output/youtube_master.mp4" --output "projects/my_video/export/youtube_1080p.mp4" --preset 1080p
 ```
 
 ---
 
 ## 🧪 Testing
 
-The repository includes a comprehensive 21-test automated suite covering all 6 phases:
+The repository includes a comprehensive 65+ test automated suite covering all 6 phases and end-to-end integration:
 
 ```bash
-python -m pytest tests/
-```
-
-```
-collected 21 items
-tests/test_consistency.py ...                                            [ 14%]
-tests/test_export.py .                                                   [ 19%]
-tests/test_imports.py .                                                  [ 23%]
-tests/test_lipsync.py ..                                                 [ 33%]
-tests/test_phase2_vision.py ....                                         [ 52%]
-tests/test_phase3.py ...                                                 [ 66%]
-tests/test_pipeline_smoke.py .                                           [ 71%]
-tests/test_project.py .                                                  [ 76%]
-tests/test_validate.py .                                                 [ 80%]
-tests/test_video_io.py ....                                              [100%]
-======================= 21 passed in 6.02s =======================
+python -m pytest tests/ -v
 ```
 
 ---

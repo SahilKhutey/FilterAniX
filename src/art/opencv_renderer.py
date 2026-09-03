@@ -7,6 +7,60 @@ import numpy as np
 from src.art.types import StylePreset, ControlMap
 
 
+def render_anime_mouth(
+    canvas_rgb: np.ndarray,
+    face_data: Any,
+    viseme: str = "closed",
+    mouth_opening: float = 0.0,
+    line_tint: tuple[int, int, int] = (40, 20, 30),
+) -> np.ndarray:
+    """Renders stylized anime mouth shape based on face landmarks / bounding box and viseme telemetry."""
+    if not face_data or not hasattr(face_data, "landmarks") or not face_data.landmarks:
+        return canvas_rgb
+
+    h, w = canvas_rgb.shape[:2]
+    pts = [(int(lm.x * w), int(lm.y * h)) for lm in face_data.landmarks]
+    
+    # Identify mouth center & dimensions
+    if len(pts) >= 468:
+        # MediaPipe lips: 13 (upper inner), 14 (lower inner), 61 (left corner), 291 (right corner)
+        mouth_cx = (pts[61][0] + pts[291][0]) // 2
+        mouth_cy = (pts[13][1] + pts[14][1]) // 2
+        mouth_w = max(6, int(abs(pts[291][0] - pts[61][0]) * 0.9))
+    elif hasattr(face_data, "bbox") and face_data.bbox:
+        bx = int(face_data.bbox.x * w)
+        by = int(face_data.bbox.y * h)
+        bw = int(face_data.bbox.width * w)
+        bh = int(face_data.bbox.height * h)
+        mouth_cx = bx + bw // 2
+        mouth_cy = by + int(bh * 0.78)
+        mouth_w = max(6, int(bw * 0.28))
+    else:
+        return canvas_rgb
+
+    ratio = max(0.0, min(1.0, mouth_opening))
+    if viseme == "closed" or (viseme is None and ratio < 0.10):
+        # Anime line mouth with slight natural curve
+        cv2.ellipse(canvas_rgb, (mouth_cx, mouth_cy), (mouth_w // 2, max(1, mouth_w // 10)), 0, 10, 170, line_tint, 2, cv2.LINE_AA)
+    elif viseme == "slightly_open" or ratio < 0.22:
+        mouth_h = max(2, int(mouth_w * 0.22))
+        cv2.ellipse(canvas_rgb, (mouth_cx, mouth_cy), (mouth_w // 2, mouth_h), 0, 0, 360, (50, 20, 30), -1, cv2.LINE_AA)
+        cv2.ellipse(canvas_rgb, (mouth_cx, mouth_cy), (mouth_w // 2, mouth_h), 0, 0, 360, line_tint, 2, cv2.LINE_AA)
+    elif viseme == "open" or ratio < 0.40:
+        mouth_h = max(4, int(mouth_w * 0.45))
+        cv2.ellipse(canvas_rgb, (mouth_cx, mouth_cy), (mouth_w // 2, mouth_h), 0, 0, 360, (80, 25, 45), -1, cv2.LINE_AA)
+        cv2.ellipse(canvas_rgb, (mouth_cx, mouth_cy + mouth_h // 3), (mouth_w // 3, mouth_h // 3), 0, 0, 180, (180, 80, 100), -1, cv2.LINE_AA)
+        cv2.ellipse(canvas_rgb, (mouth_cx, mouth_cy), (mouth_w // 2, mouth_h), 0, 0, 360, line_tint, 2, cv2.LINE_AA)
+    else:  # wide_open
+        mouth_h = max(6, int(mouth_w * 0.70))
+        cv2.ellipse(canvas_rgb, (mouth_cx, mouth_cy), (mouth_w // 2, mouth_h), 0, 0, 360, (90, 20, 40), -1, cv2.LINE_AA)
+        cv2.line(canvas_rgb, (mouth_cx - mouth_w // 3, mouth_cy - mouth_h // 3), (mouth_cx + mouth_w // 3, mouth_cy - mouth_h // 3), (240, 240, 245), 2, cv2.LINE_AA)
+        cv2.ellipse(canvas_rgb, (mouth_cx, mouth_cy + mouth_h // 3), (mouth_w // 3, mouth_h // 3), 0, 0, 180, (200, 90, 110), -1, cv2.LINE_AA)
+        cv2.ellipse(canvas_rgb, (mouth_cx, mouth_cy), (mouth_w // 2, mouth_h), 0, 0, 360, line_tint, 2, cv2.LINE_AA)
+
+    return canvas_rgb
+
+
 class OpenCVArtRenderer:
     """Fast deterministic artistic renderer for preview, fallback, and intermediate frames."""
 
@@ -18,7 +72,14 @@ class OpenCVArtRenderer:
         self.bilateral_passes = bilateral_passes
         self.edge_strength = edge_strength
 
-    def render(self, frame: np.ndarray, *args, **kwargs) -> np.ndarray:
+    def render(
+        self,
+        frame: np.ndarray,
+        vision_data: Optional[Any] = None,
+        lipsync_record: Optional[Any] = None,
+        *args,
+        **kwargs,
+    ) -> np.ndarray:
         result = frame.copy()
 
         for _ in range(self.bilateral_passes):
@@ -51,7 +112,7 @@ class OpenCVArtRenderer:
             edges,
         )
 
-        return cv2.addWeighted(
+        blended = cv2.addWeighted(
             result,
             1.0 - self.edge_strength,
             output,
@@ -59,12 +120,28 @@ class OpenCVArtRenderer:
             0,
         )
 
+        # Apply character anime mouth rendering if vision face or lipsync present
+        if vision_data and hasattr(vision_data, "faces") and vision_data.faces:
+            face = vision_data.faces[0]
+            viseme = getattr(lipsync_record, "viseme", "closed") if lipsync_record else "closed"
+            ratio = getattr(lipsync_record, "mouth_open_ratio", getattr(face, "mouth_opening", 0.0))
+            blended = render_anime_mouth(blended, face, viseme=viseme, mouth_opening=ratio)
+
+        return blended
+
 
 class OpenCVIllustrationRenderer:
     """High-precision procedural anime illustration renderer with Reinhard reference palette alignment."""
 
-    def __init__(self, style_preset: Optional[StylePreset] = None):
-        self.style = style_preset or StylePreset()
+    def __init__(self, style_preset: Optional[StylePreset | StyleConfig] = None):
+        if style_preset is None:
+            self.style = StylePreset()
+        elif hasattr(style_preset, "style") and isinstance(style_preset.style, StylePreset):
+            self.style = style_preset.style
+        elif isinstance(style_preset, StylePreset):
+            self.style = style_preset
+        else:
+            self.style = StylePreset()
 
     def apply_color_transfer(self, source_rgb: np.ndarray, reference_rgb: np.ndarray) -> np.ndarray:
         """Transfers the color distribution of the reference image to the source image in Lab space."""
@@ -103,8 +180,9 @@ class OpenCVIllustrationRenderer:
         control_map: Optional[ControlMap] = None,
         vision_data: Optional[Any] = None,
         reference_rgb: Optional[np.ndarray] = None,
+        lipsync_record: Optional[Any] = None,
     ) -> np.ndarray:
-        """Transforms a raw frame into an anime illustration."""
+        """Transforms a raw frame into an anime illustration with lip-sync viseme animation."""
         h, w = rgb.shape[:2]
 
         canvas = rgb
@@ -151,4 +229,13 @@ class OpenCVIllustrationRenderer:
         vignette = vignette / np.max(vignette)
         composite = composite * (0.80 + 0.20 * vignette[..., np.newaxis])
 
-        return np.clip(composite, 0, 255).astype(np.uint8)
+        out_frame = np.clip(composite, 0, 255).astype(np.uint8)
+
+        # Apply anime mouth rendering based on face and lipsync viseme
+        if vision_data and hasattr(vision_data, "faces") and vision_data.faces:
+            face = vision_data.faces[0]
+            viseme = getattr(lipsync_record, "viseme", "closed") if lipsync_record else "closed"
+            ratio = getattr(lipsync_record, "mouth_open_ratio", getattr(face, "mouth_opening", 0.0))
+            out_frame = render_anime_mouth(out_frame, face, viseme=viseme, mouth_opening=ratio, line_tint=self.style.line_tint)
+
+        return out_frame

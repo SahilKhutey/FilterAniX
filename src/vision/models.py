@@ -27,6 +27,7 @@ class BoundingBox:
     y: float
     width: float
     height: float
+    confidence: float = 1.0
 
     def to_dict(self) -> Dict[str, float]:
         return {

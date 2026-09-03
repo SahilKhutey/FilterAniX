@@ -22,9 +22,12 @@ class VisionEngine:
             hand_detection_confidence=vision_cfg.get("hand_detection_confidence", 0.5),
             hand_tracking_confidence=vision_cfg.get("hand_tracking_confidence", 0.5),
             enable_segmentation=vision_cfg.get("segmentation", True),
+            hand_interval=vision_cfg.get("hand_interval", 1),
         )
 
         self.motion = OpticalFlowMotion() if vision_cfg.get("optical_flow", True) else None
+        self.object_interval = object_cfg.get("interval", 5)
+        self._cached_objects = []
 
         if yolo_model or object_cfg.get("enabled", False):
             model = yolo_model or object_cfg.get("model")
@@ -42,14 +45,18 @@ class VisionEngine:
         timestamp: float,
     ) -> FrameVision:
 
-        analysis = self.mp.process(frame)
+        analysis = self.mp.process(frame, frame_index=frame_index)
         motion = self.motion.process(frame) if self.motion else None
 
         if motion is None:
             from .types import MotionData
             motion = MotionData(valid=False)
 
-        objects = self.objects.detect(frame)
+        if self.object_interval <= 1 or frame_index % self.object_interval == 0:
+            objects = self.objects.detect(frame)
+            self._cached_objects = objects
+        else:
+            objects = self._cached_objects
 
         h, w = frame.shape[:2]
 

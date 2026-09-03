@@ -128,62 +128,153 @@ class MediaDetails:
         }
 
 
+import json
+
+
+def extract_audio(input_video_path: str | Path, output_audio_path: str | Path) -> bool:
+    """Extracts raw or AAC audio from the input video container."""
+    output_audio_path = Path(output_audio_path)
+    output_audio_path.parent.mkdir(parents=True, exist_ok=True)
+
+    args = [
+        "-i", str(input_video_path),
+        "-vn",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-ar", "48000",
+        str(output_audio_path),
+    ]
+    res = run_ffmpeg(args, check=False)
+    return res.returncode == 0 and output_audio_path.exists() and output_audio_path.stat().st_size > 0
+
+
 def inspect_media(path: str | Path) -> MediaDetails:
-    """Inspects video and audio stream parameters using FFmpeg / FFprobe."""
+    """Inspects video and audio stream parameters using ffprobe JSON, with FFmpeg / OpenCV fallback."""
     path = Path(path).resolve()
     if not path.exists():
         raise FileNotFoundError(f"Media file not found: {path}")
 
-    ffmpeg_bin = require_ffmpeg()
-    proc = subprocess.run(
-        [ffmpeg_bin, "-i", str(path)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="ignore",
-    )
-    output_text = (proc.stdout or "") + "\n" + (proc.stderr or "")
-
     details = MediaDetails(path=str(path))
+    ffprobe_bin = get_ffprobe_executable()
 
-    # Video stream detection
-    v_match = re.search(r"Stream #\d+:\d+.*Video:\s*([a-zA-Z0-9_\-]+).*?(\d{2,5})x(\d{2,5})", output_text)
-    if v_match:
-        details.has_video = True
-        details.video_codec = v_match.group(1)
-        details.width = int(v_match.group(2))
-        details.height = int(v_match.group(3))
+    # 1. Primary: Try ffprobe JSON output
+    if ffprobe_bin:
+        try:
+            probe_cmd = [
+                ffprobe_bin,
+                "-v", "quiet",
+                "-print_format", "json",
+                "-show_format",
+                "-show_streams",
+                str(path),
+            ]
+            proc = subprocess.run(
+                probe_cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="ignore",
+                timeout=10,
+            )
+            if proc.returncode == 0 and proc.stdout:
+                data = json.loads(proc.stdout)
+                streams = data.get("streams", [])
+                format_info = data.get("format", {})
 
-    fps_match = re.search(r"(\d+(?:\.\d+)?)\s*fps", output_text)
-    if fps_match:
-        details.fps = float(fps_match.group(1))
+                for stream in streams:
+                    codec_type = stream.get("codec_type")
+                    if codec_type == "video" and not details.has_video:
+                        details.has_video = True
+                        details.video_codec = stream.get("codec_name", "unknown")
+                        details.width = int(stream.get("width", 0))
+                        details.height = int(stream.get("height", 0))
+                        
+                        # Parse frame rate
+                        r_fps = stream.get("r_frame_rate", "30/1")
+                        if "/" in str(r_fps):
+                            num, den = str(r_fps).split("/", 1)
+                            den_f = float(den) if float(den) > 0 else 1.0
+                            details.fps = float(num) / den_f
+                        else:
+                            details.fps = float(r_fps) or 30.0
 
-    # Audio stream detection
-    a_match = re.search(r"Stream #\d+:\d+.*Audio:\s*([a-zA-Z0-9_\-]+).*?(\d+)\s*Hz.*?(\bmono\b|\bstereo\b|\d+\s*channels)", output_text, re.IGNORECASE)
-    if a_match:
-        details.has_audio = True
-        details.audio_codec = a_match.group(1)
-        details.sample_rate = int(a_match.group(2))
-        chan_str = a_match.group(3).lower()
-        details.channels = 1 if "mono" in chan_str else 2
+                        if "duration" in stream and float(stream["duration"]) > 0:
+                            details.video_duration = float(stream["duration"])
 
-    # Duration parsing
-    dur_match = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", output_text)
-    if dur_match:
-        h, m, s = map(float, dur_match.groups())
-        dur_val = h * 3600 + m * 60 + s
-        details.video_duration = dur_val
-        if details.has_audio:
-            details.audio_duration = dur_val
+                    elif codec_type == "audio" and not details.has_audio:
+                        details.has_audio = True
+                        details.audio_codec = stream.get("codec_name", "unknown")
+                        details.sample_rate = int(stream.get("sample_rate", 48000))
+                        details.channels = int(stream.get("channels", 2))
+                        if "duration" in stream and float(stream["duration"]) > 0:
+                            details.audio_duration = float(stream["duration"])
 
-    # Backup OpenCV inspection for video stats
+                if "duration" in format_info and float(format_info["duration"]) > 0:
+                    dur = float(format_info["duration"])
+                    if details.video_duration <= 0:
+                        details.video_duration = dur
+                    if details.has_audio and details.audio_duration <= 0:
+                        details.audio_duration = dur
+
+                if details.has_video:
+                    return details
+        except Exception:
+            pass
+
+    # 2. Secondary: Fallback to ffmpeg -i banner regex
+    try:
+        ffmpeg_bin = require_ffmpeg()
+        proc = subprocess.run(
+            [ffmpeg_bin, "-i", str(path)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="ignore",
+            timeout=10,
+        )
+        output_text = (proc.stdout or "") + "\n" + (proc.stderr or "")
+
+        # Video stream detection
+        v_match = re.search(r"Stream #\d+:\d+.*Video:\s*([a-zA-Z0-9_\-]+).*?(\d{2,5})x(\d{2,5})", output_text)
+        if v_match:
+            details.has_video = True
+            details.video_codec = v_match.group(1)
+            details.width = int(v_match.group(2))
+            details.height = int(v_match.group(3))
+
+        fps_match = re.search(r"(\d+(?:\.\d+)?)\s*fps", output_text)
+        if fps_match:
+            details.fps = float(fps_match.group(1))
+
+        # Audio stream detection
+        a_match = re.search(r"Stream #\d+:\d+.*Audio:\s*([a-zA-Z0-9_\-]+).*?(\d+)\s*Hz.*?(\bmono\b|\bstereo\b|\d+\s*channels)", output_text, re.IGNORECASE)
+        if a_match:
+            details.has_audio = True
+            details.audio_codec = a_match.group(1)
+            details.sample_rate = int(a_match.group(2))
+            chan_str = a_match.group(3).lower()
+            details.channels = 1 if "mono" in chan_str else 2
+
+        # Duration parsing
+        dur_match = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", output_text)
+        if dur_match:
+            h, m, s = map(float, dur_match.groups())
+            dur_val = h * 3600 + m * 60 + s
+            details.video_duration = dur_val
+            if details.has_audio:
+                details.audio_duration = dur_val
+    except Exception:
+        pass
+
+    # 3. Tertiary: Backup OpenCV inspection for video stats
     if details.width == 0 or details.height == 0:
         cap = cv2.VideoCapture(str(path))
         if cap.isOpened():
             details.width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             details.height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            details.fps = float(cap.get(cv2.CAP_PROP_FPS)) or 30.0
+            fps_val = float(cap.get(cv2.CAP_PROP_FPS))
+            details.fps = fps_val if fps_val > 0 and not np.isnan(fps_val) else 30.0
             fc = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             if details.video_duration <= 0 and details.fps > 0:
                 details.video_duration = fc / details.fps

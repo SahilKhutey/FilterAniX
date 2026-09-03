@@ -1,4 +1,4 @@
-﻿"""Precompute temporal decisions and export temporal_plan.jsonl."""
+"""Precompute temporal decisions and export temporal_plan.jsonl."""
 import argparse
 import sys
 from pathlib import Path
@@ -16,7 +16,7 @@ from src.consistency.planner import TemporalPlanner
 def main():
     parser = argparse.ArgumentParser(description="Phase 4 Temporal Plan Generator")
     parser.add_argument("--video", "-v", type=str, required=True, help="Path to input video (.mp4)")
-    parser.add_argument("--vision-jsonl", "-j", type=str, default=None, help="Path to vision.jsonl")
+    parser.add_argument("--vision", "--vision-jsonl", "-j", dest="vision_jsonl", type=str, default=None, help="Path to vision.jsonl")
     parser.add_argument("--output", "-o", type=str, default="temporal_plan.jsonl", help="Output plan path")
     parser.add_argument("--reference-profile", "-r", type=str, default=None, help="Optional reference profile")
     parser.add_argument("--keyframe-interval", "-k", type=int, default=12, help="Anchor keyframe interval")

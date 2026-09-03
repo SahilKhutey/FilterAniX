@@ -272,19 +272,22 @@ def draw_person(frame: np.ndarray, index: int) -> None:
         )
 
 
-def generate(output: Path) -> None:
+def generate(output: Path, with_audio: bool = True) -> None:
+    output = Path(output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
+
+    temp_video = output.parent / f"temp_silent_{output.name}"
 
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(
-        str(output),
+        str(temp_video),
         fourcc,
         FPS,
         (WIDTH, HEIGHT),
     )
 
     if not writer.isOpened():
-        raise RuntimeError(f"Could not open video writer: {output}")
+        raise RuntimeError(f"Could not open video writer: {temp_video}")
 
     try:
         for index in range(FRAMES):
@@ -312,6 +315,37 @@ def generate(output: Path) -> None:
     finally:
         writer.release()
 
+    if with_audio:
+        # Add synthetic speech/test tone audio track using FFmpeg
+        try:
+            from src.media.ffmpeg import run_ffmpeg
+            duration_sec = FRAMES / FPS
+            args = [
+                "-i", str(temp_video),
+                "-f", "lavfi",
+                "-i", f"sine=frequency=440:duration={duration_sec}",
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-ar", "48000",
+                "-shortest",
+                str(output),
+            ]
+            res = run_ffmpeg(args, check=False)
+            if res.returncode == 0 and output.exists() and output.stat().st_size > 0:
+                if temp_video.exists():
+                    temp_video.unlink(missing_ok=True)
+            else:
+                if temp_video.exists():
+                    temp_video.replace(output)
+        except Exception:
+            if temp_video.exists():
+                temp_video.replace(output)
+    else:
+        if temp_video.exists():
+            temp_video.replace(output)
+
     print(f"Created: {output}")
     print(f"Frames:  {FRAMES}")
     print(f"FPS:     {FPS}")
@@ -325,9 +359,15 @@ def main() -> None:
         type=Path,
         default=Path(__file__).parent / "creator_test_video.mp4",
     )
+    parser.add_argument(
+        "--no-audio",
+        action="store_true",
+        help="Generate video without audio track",
+    )
     args = parser.parse_args()
-    generate(args.output)
+    generate(args.output, with_audio=not args.no_audio)
 
 
 if __name__ == "__main__":
     main()
+

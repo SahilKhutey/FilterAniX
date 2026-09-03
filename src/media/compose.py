@@ -22,53 +22,93 @@ def compose_final_video(
         exist_ok=True,
     )
 
-    args = [
-        "-i",
-        str(animated_video),
-        "-i",
-        str(audio_source),
-        "-map",
-        "0:v:0",
-        "-map",
-        "1:a:0?",
-        "-c:v",
-        "libx264",
-        "-preset",
-        preset,
-        "-crf",
-        str(crf),
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "aac",
-        "-b:a",
-        audio_bitrate,
-        "-ar",
-        "48000",
-        "-ac",
-        "2",
-        "-af",
-        "loudnorm=I=-14:TP=-1.5:LRA=11",
-        "-movflags",
-        "+faststart",
-        "-shortest",
-    ]
+    source_details = inspect_media(audio_source)
 
-    if subtitles and Path(subtitles).exists():
-        args.extend(
-            [
-                "-vf",
-                f"subtitles={subtitles}",
+    if source_details.has_audio:
+        # Standard composition with EBU R128 loudness normalization
+        args = [
+            "-i",
+            str(animated_video),
+            "-i",
+            str(audio_source),
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-c:v",
+            "libx264",
+            "-preset",
+            preset,
+            "-crf",
+            str(crf),
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            audio_bitrate,
+            "-ar",
+            "48000",
+            "-ac",
+            "2",
+            "-af",
+            "loudnorm=I=-14:TP=-1.5:LRA=11",
+            "-movflags",
+            "+faststart",
+            "-shortest",
+        ]
+
+        if subtitles and Path(subtitles).exists():
+            args.extend(
+                [
+                    "-vf",
+                    f"subtitles={subtitles}",
+                ]
+            )
+
+        args.append(str(output_path))
+        result = run_ffmpeg(args, check=False)
+
+        if result.returncode != 0:
+            # Fallback attempt: audio mux without loudnorm (e.g. if audio was too short for 3-second loudnorm window)
+            fallback_args = [
+                "-i",
+                str(animated_video),
+                "-i",
+                str(audio_source),
+                "-map",
+                "0:v:0",
+                "-map",
+                "1:a:0",
+                "-c:v",
+                "libx264",
+                "-preset",
+                preset,
+                "-crf",
+                str(crf),
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-b:a",
+                audio_bitrate,
+                "-ar",
+                "48000",
+                "-movflags",
+                "+faststart",
+                "-shortest",
+                str(output_path),
             ]
-        )
-
-    args.append(str(output_path))
-
-    result = run_ffmpeg(args, check=False)
-
-    if result.returncode != 0:
-        # Fallback without audio filter if source had no audio or loudnorm failed
-        fallback_args = [
+            fallback_res = run_ffmpeg(fallback_args, check=False)
+            if fallback_res.returncode != 0:
+                raise RuntimeError(
+                    f"FFmpeg audio composition failed on audio-enabled source:\n"
+                    f"Loudnorm attempt error: {result.stderr}\n"
+                    f"Fallback attempt error: {fallback_res.stderr}"
+                )
+    else:
+        # Video-only input (no audio track in source)
+        args = [
             "-i",
             str(animated_video),
             "-c:v",
@@ -83,9 +123,9 @@ def compose_final_video(
             "+faststart",
             str(output_path),
         ]
-        fallback_res = run_ffmpeg(fallback_args, check=False)
-        if fallback_res.returncode != 0:
-            raise RuntimeError(f"FFmpeg composition failed: {result.stderr or fallback_res.stderr}")
+        result = run_ffmpeg(args, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg video composition failed: {result.stderr}")
 
     return output_path
 

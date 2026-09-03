@@ -10,16 +10,17 @@ from src.core.logging_setup import setup_logging
 def main():
     parser = argparse.ArgumentParser(description="Animated Creator Production Pipeline")
     parser.add_argument("--input", required=True, help="Path to input creator video")
-    parser.add_argument("--project", required=True, help="Path to project directory")
+    parser.add_argument("--project", "--project-dir", dest="project", required=True, help="Path to project directory")
     parser.add_argument("--style", default="anime_creator", help="Style key (e.g. anime_creator, illustration)")
 
     args = parser.parse_args()
 
     logger = setup_logging()
-    project = Project(args.project)
+    project_path = Path(args.project)
+    project = Project(project_path)
 
     if not project.manifest_path.exists():
-        project.create(Path(args.project).name)
+        project.create(project_path.name)
 
     recover_project(project)
     pipeline = PipelineManager(project)
